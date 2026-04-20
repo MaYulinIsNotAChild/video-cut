@@ -260,26 +260,34 @@ $("clearMediaBtn").addEventListener("click", () => {
   $("analyzeBtn").disabled = true;
   $("mediaList").classList.add("hidden");
   uploadArea.classList.remove("hidden");
+  $("compressBtn").disabled = true;
+  $("compressDownloadPanel").classList.add("hidden");
+  $("subtitleBtn").classList.add("hidden");
+  $("subtitlePanel").classList.add("hidden");
+  edit.subtitleFileId = null;
+  $("thumbnailBtn").classList.add("hidden");
+  $("thumbnailPanel").classList.add("hidden");
 });
 
 function _buildEditOptions() {
   const preset = document.querySelector(".preset-btn.active")?.dataset.preset || "none";
   return {
-    remove_audio: $("optRemoveAudio").checked,
-    transition:   $("optTransition").value,
-    speed:        parseFloat($("optSpeed").value),
-    brightness:   parseInt($("optBrightness").value) / 100,
-    contrast:     parseInt($("optContrast").value) / 100,
-    saturation:   parseInt($("optSaturation").value) / 100,
-    color_preset: preset,
-    hflip:        edit.hflip,
-    vflip:        edit.vflip,
-    rotate:       edit.rotate,
-    crop_ratio:   edit.crop || null,
-    volume:       parseInt($("optVolume").value) / 100,
-    bgm_file_id:  edit.bgmFileId || null,
-    bgm_volume:   parseInt($("optBgmVolume").value) / 100,
-    quality:      $("optQuality").value,
+    remove_audio:     $("optRemoveAudio").checked,
+    transition:       $("optTransition").value,
+    speed:            parseFloat($("optSpeed").value),
+    brightness:       parseInt($("optBrightness").value) / 100,
+    contrast:         parseInt($("optContrast").value) / 100,
+    saturation:       parseInt($("optSaturation").value) / 100,
+    color_preset:     preset,
+    hflip:            edit.hflip,
+    vflip:            edit.vflip,
+    rotate:           edit.rotate,
+    crop_ratio:       edit.crop || null,
+    volume:           parseInt($("optVolume").value) / 100,
+    bgm_file_id:      edit.bgmFileId || null,
+    bgm_volume:       parseInt($("optBgmVolume").value) / 100,
+    quality:          $("optQuality").value,
+    subtitle_file_id: ($("optBurnSubtitle").checked && edit.subtitleFileId) ? edit.subtitleFileId : null,
   };
 }
 
@@ -354,6 +362,13 @@ async function selectMediaFile(fileId) {
     $("analysisPanel").classList.remove("hidden");
   } finally { hideLoading("loading"); }
   $("analyzeBtn").disabled = false;
+  $("compressBtn").disabled = false;
+  $("subtitleBtn").classList.remove("hidden");
+  $("subtitlePanel").classList.add("hidden");
+  $("subtitlePreview").value = "";
+  edit.subtitleFileId = null;
+  $("thumbnailBtn").classList.remove("hidden");
+  $("thumbnailPanel").classList.add("hidden");
 }
 
 function renderMediaInfo(info, type) {
@@ -678,6 +693,7 @@ function renderMultiPlan(result) {
           <span class="mvc-name">${name}</span>
           <span class="mvc-dur">${dur.toFixed(1)}s</span>
           <button class="btn-link-sm" onclick="applyMultiPlan('${v.file_id}', ${i})">用此方案剪辑</button>
+          <button class="btn-link-sm btn-export-single" onclick="exportSingleFromMulti('${v.file_id}', ${i})">⬇ 直接导出</button>
         </div>
         <div class="mvc-summary">${v.content_summary || ""}</div>
         ${segs.length ? `<div class="mvc-segs">${segList}</div>` : ""}
@@ -738,12 +754,9 @@ $("exportAllBtn").addEventListener("click", async () => {
   const orderedVideos = order.map((i) => result.videos[i]).filter(Boolean);
   if (!orderedVideos.length) return;
 
-  showLoading(
-    `正在按推荐顺序剪辑并合并 ${orderedVideos.length} 个视频...`,
-    "loading", "loadingText"
-  );
+  showLoading("正在提交任务...", "loading", "loadingText");
   try {
-    const res = await post("/api/export-multi", {
+    const { task_id } = await post("/api/export-multi", {
       videos: orderedVideos.map((v) => ({
         file_id: v.file_id,
         segments_to_keep: v.editing_plan?.segments_to_keep || [],
@@ -751,10 +764,172 @@ $("exportAllBtn").addEventListener("click", async () => {
       })),
       options: { quality: $("optQuality").value },
     });
-    $("multiDownloadLink").href = res.download_url;
-    $("multiDownloadLink").setAttribute("download", res.filename);
+    // 轮询进度
+    await _pollTask(task_id, (prog) => {
+      $("loadingText").textContent = `正在剪辑合并... ${prog}%`;
+    });
+    const task = await fetch(`/api/task/${task_id}`).then((r) => r.json());
+    if (task.status === "error") throw new Error(task.error);
+    $("multiDownloadLink").href = task.result.download_url;
+    $("multiDownloadLink").setAttribute("download", task.result.filename);
     $("multiDownloadPanel").classList.remove("hidden");
     $("multiDownloadPanel").scrollIntoView({ behavior: "smooth" });
   } catch (err) { alert("合并失败：" + err.message); }
   finally { hideLoading("loading"); }
 });
+
+async function _pollTask(taskId, onProgress) {
+  while (true) {
+    await new Promise((r) => setTimeout(r, 2000));
+    const task = await fetch(`/api/task/${taskId}`).then((r) => r.json());
+    if (onProgress) onProgress(task.progress || 0);
+    if (task.status === "done" || task.status === "error") return;
+  }
+}
+
+// ── 多视频卡片单视频直接导出 ──────────────────────────────────────────────────
+
+async function exportSingleFromMulti(fileId, videoIdx) {
+  const result = window._multiResult;
+  if (!result) return;
+  const v = result.videos[videoIdx];
+  if (!v || !v.editing_plan?.segments_to_keep?.length) {
+    alert("该视频没有剪辑方案"); return;
+  }
+  const opts = v.editing_plan.recommended_options || {};
+  showLoading(`正在导出视频 ${videoIdx + 1}...`, "loading", "loadingText");
+  try {
+    const res = await post("/api/edit", {
+      file_id: fileId,
+      segments_to_keep: v.editing_plan.segments_to_keep,
+      options: {
+        color_preset: opts.color_preset || "none",
+        speed: opts.speed || 1.0,
+        remove_audio: opts.remove_audio || false,
+        quality: $("optQuality").value,
+        transition: "none",
+        brightness: 0, contrast: 1.0, saturation: 1.0, volume: 1.0,
+      },
+    });
+    $("multiDownloadLink").href = res.download_url;
+    $("multiDownloadLink").setAttribute("download", res.filename);
+    $("multiDownloadPanel").classList.remove("hidden");
+    $("multiDownloadPanel").scrollIntoView({ behavior: "smooth" });
+  } catch (err) { alert("导出失败：" + err.message); }
+  finally { hideLoading("loading"); }
+}
+
+// ── 字幕生成 ──────────────────────────────────────────────────────────────────
+
+$("subtitleBtn").addEventListener("click", async () => {
+  if (!edit.activeId) return;
+  if (!getApiKey()) { alert("请先填入 API Key"); return; }
+  showLoading("Whisper 转写中（约10-30秒）...", "loading", "loadingText");
+  try {
+    const res = await post(`/api/transcribe/${edit.activeId}`, { api_key: getApiKey() });
+    $("subtitlePreview").value = res.srt_content;
+    $("subtitlePanel").classList.remove("hidden");
+    // 保存 SRT file_id 供导出时使用
+    edit.subtitleFileId = edit.activeId;
+  } catch (err) { alert("字幕生成失败：" + err.message); }
+  finally { hideLoading("loading"); }
+});
+
+// ── 封面帧提取 ────────────────────────────────────────────────────────────────
+
+$("thumbnailBtn").addEventListener("click", async () => {
+  if (!edit.activeId) return;
+  if (!getApiKey()) { alert("请先填入 API Key"); return; }
+  showLoading("AI 分析最佳封面帧...", "loading", "loadingText");
+  try {
+    const res = await post(`/api/thumbnail/${edit.activeId}`, { api_key: getApiKey() });
+    $("thumbnailImg").src = res.thumbnail_url;
+    $("thumbnailDownload").href = res.thumbnail_url;
+    $("thumbnailDownload").setAttribute("download", `thumb_${edit.activeId}.jpg`);
+    $("thumbnailPanel").classList.remove("hidden");
+  } catch (err) { alert("封面提取失败：" + err.message); }
+  finally { hideLoading("loading"); }
+});
+
+// ── 视频压缩 ──────────────────────────────────────────────────────────────────
+
+$("compressBtn").addEventListener("click", async () => {
+  if (!edit.activeId) return;
+  showLoading("正在压缩...", "loading", "loadingText");
+  try {
+    const res = await post("/api/compress", {
+      file_id: edit.activeId,
+      target_height: parseInt($("compressHeight").value),
+      crf: parseInt($("compressCrf").value),
+      format: $("compressFormat").value,
+    });
+    $("compressDownloadLink").href = res.download_url;
+    $("compressDownloadLink").setAttribute("download", res.filename);
+    $("compressDownloadPanel").classList.remove("hidden");
+  } catch (err) { alert(err.message); }
+  finally { hideLoading("loading"); }
+});
+
+// ── 模板管理 ──────────────────────────────────────────────────────────────────
+
+const TEMPLATE_KEY = "videocut_templates";
+
+function _getTemplates() {
+  try { return JSON.parse(localStorage.getItem(TEMPLATE_KEY) || "{}"); } catch { return {}; }
+}
+
+function saveTemplate() {
+  const name = prompt("模板名称：");
+  if (!name) return;
+  const templates = _getTemplates();
+  templates[name] = _buildEditOptions();
+  localStorage.setItem(TEMPLATE_KEY, JSON.stringify(templates));
+  refreshTemplateSelect();
+  alert(`模板「${name}」已保存`);
+}
+
+function loadTemplate(name) {
+  if (!name) return;
+  if (name === "__delete__") {
+    const del = prompt("输入要删除的模板名称：");
+    if (!del) { $("templateSelect").value = ""; return; }
+    const templates = _getTemplates();
+    delete templates[del];
+    localStorage.setItem(TEMPLATE_KEY, JSON.stringify(templates));
+    refreshTemplateSelect();
+    return;
+  }
+  const t = _getTemplates()[name];
+  if (!t) return;
+  // 恢复各控件值
+  $("optRemoveAudio").checked = t.remove_audio || false;
+  $("optTransition").value    = t.transition || "none";
+  $("optSpeed").value         = t.speed || 1;
+  $("optQuality").value       = t.quality || "medium";
+  const b = Math.round((t.brightness || 0) * 100);
+  const c = Math.round((t.contrast || 1) * 100);
+  const s = Math.round((t.saturation || 1) * 100);
+  const v = Math.round((t.volume || 1) * 100);
+  _setSlider("optBrightness", "brightnessVal", b);
+  _setSlider("optContrast",   "contrastVal",   c);
+  _setSlider("optSaturation", "saturationVal", s);
+  _setSlider("optVolume",     "volumeVal",     v);
+  if (t.color_preset) {
+    document.querySelectorAll(".preset-btn").forEach((b) => b.classList.remove("active"));
+    const pb = document.querySelector(`.preset-btn[data-preset="${t.color_preset}"]`);
+    if (pb) pb.classList.add("active");
+  }
+  $("templateSelect").value = "";
+}
+
+function refreshTemplateSelect() {
+  const sel = $("templateSelect");
+  const templates = _getTemplates();
+  const names = Object.keys(templates);
+  sel.innerHTML = '<option value="">-- 加载模板 --</option>' +
+    names.map((n) => `<option value="${n}">${n}</option>`).join("") +
+    (names.length ? `<option value="__delete__">🗑 删除模板...</option>` : "");
+}
+
+// 页面加载时初始化模板列表
+refreshTemplateSelect();

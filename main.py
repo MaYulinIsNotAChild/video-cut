@@ -1,5 +1,6 @@
 import shutil
 import tempfile
+import threading
 import uuid
 from pathlib import Path
 from typing import List, Optional
@@ -11,9 +12,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from core.ffmpeg_utils import apply_edits, concat_videos, detect_silence, extract_frames, get_media_info
+from core.ffmpeg_utils import apply_edits, compress_video, concat_videos, detect_silence, extract_frames, get_media_info
 from core.photo_utils import create_photo_clip, create_slideshow
 from services.ai_service import get_editing_plan, get_multi_video_plan, get_slideshow_plan
+
+# 异步任务字典
+_tasks: dict = {}
 
 load_dotenv()
 
@@ -164,64 +168,89 @@ async def suggest_multi(body: dict):
         raise HTTPException(400, _friendly_ai_error(e))
 
 
+@app.get("/api/task/{task_id}")
+async def get_task(task_id: str):
+    """查询异步任务状态"""
+    task = _tasks.get(task_id)
+    if not task:
+        raise HTTPException(404, "任务不存在")
+    return task
+
+
 @app.post("/api/export-multi")
 async def export_multi(body: dict):
-    """按 AI 推荐顺序对所有视频应用剪辑方案并拼接为一个最终视频"""
+    """异步拼接多视频，立即返回 task_id，前端轮询 /api/task/{task_id}"""
     videos_plan = body.get("videos", [])
     if not videos_plan:
         raise HTTPException(400, "没有视频方案")
     if len(videos_plan) > 8:
         raise HTTPException(400, "最多支持 8 个视频")
 
-    global_opts = body.get("options", {})
-    tmp_clips: List[str] = []
-    transition_list: List[str] = []
-    tmp_dir_obj = tempfile.mkdtemp()
+    task_id = str(uuid.uuid4())
+    _tasks[task_id] = {"status": "pending", "progress": 0, "result": None, "error": None}
 
+    # 预先解析文件路径（在主线程做，避免线程里 HTTPException 无法返回给客户端）
     try:
-        pending_trans: Optional[str] = None  # 上一个有效 clip 的 transition_to_next
-        for i, vp in enumerate(videos_plan):
-            filepath = _find_file(vp.get("file_id", ""))
-            segments = vp.get("segments_to_keep", [])
-            opts = vp.get("recommended_options", {})
+        resolved = []
+        for vp in videos_plan:
+            fp = _find_file(vp.get("file_id", ""))
+            resolved.append((str(fp), vp))
+    except HTTPException as e:
+        raise e
 
-            if not segments:
-                continue  # 跳过无片段的视频，不加入 transition_list
+    global_opts = body.get("options", {})
 
-            clip_path = str(Path(tmp_dir_obj) / f"clip_{len(tmp_clips):03d}.mp4")
-            apply_edits(
-                str(filepath), segments, clip_path,
-                remove_audio=opts.get("remove_audio", global_opts.get("remove_audio", False)),
-                transition=global_opts.get("transition", "none"),
-                speed=float(opts.get("speed", global_opts.get("speed", 1.0))),
-                color_preset=opts.get("color_preset", global_opts.get("color_preset", "none")),
-                brightness=float(global_opts.get("brightness", 0.0)),
-                contrast=float(global_opts.get("contrast", 1.0)),
-                saturation=float(global_opts.get("saturation", 1.0)),
-                volume=float(global_opts.get("volume", 1.0)),
-                quality=global_opts.get("quality", "medium"),
-            )
-            # 在两个有效 clip 之间补上上一个视频的 transition_to_next
-            if tmp_clips and pending_trans is not None:
-                transition_list.append(pending_trans)
-            tmp_clips.append(clip_path)
-            pending_trans = opts.get("transition_to_next", "cut")
+    def _run():
+        tmp_dir_obj = tempfile.mkdtemp()
+        try:
+            _tasks[task_id]["status"] = "running"
+            tmp_clips: List[str] = []
+            transition_list: List[str] = []
+            pending_trans: Optional[str] = None
+            total = len(resolved)
 
-        if not tmp_clips:
-            raise HTTPException(400, "没有有效的视频片段")
+            for idx, (filepath, vp) in enumerate(resolved):
+                segments = vp.get("segments_to_keep", [])
+                opts = vp.get("recommended_options", {})
+                if not segments:
+                    continue
+                clip_path = str(Path(tmp_dir_obj) / f"clip_{len(tmp_clips):03d}.mp4")
+                apply_edits(
+                    filepath, segments, clip_path,
+                    remove_audio=opts.get("remove_audio", global_opts.get("remove_audio", False)),
+                    transition=global_opts.get("transition", "none"),
+                    speed=float(opts.get("speed", global_opts.get("speed", 1.0))),
+                    color_preset=opts.get("color_preset", global_opts.get("color_preset", "none")),
+                    brightness=float(global_opts.get("brightness", 0.0)),
+                    contrast=float(global_opts.get("contrast", 1.0)),
+                    saturation=float(global_opts.get("saturation", 1.0)),
+                    volume=float(global_opts.get("volume", 1.0)),
+                    quality=global_opts.get("quality", "medium"),
+                )
+                if tmp_clips and pending_trans is not None:
+                    transition_list.append(pending_trans)
+                tmp_clips.append(clip_path)
+                pending_trans = opts.get("transition_to_next", "cut")
+                _tasks[task_id]["progress"] = int((idx + 1) / total * 80)
 
-        out_name = f"merged_{uuid.uuid4()}.mp4"
-        out_path = OUTPUT_DIR / out_name
+            if not tmp_clips:
+                _tasks[task_id].update({"status": "error", "error": "没有有效的视频片段"})
+                return
 
-        concat_videos(
-            tmp_clips, str(out_path),
-            transitions=transition_list,
-            quality=global_opts.get("quality", "medium"),
-        )
-    finally:
-        shutil.rmtree(tmp_dir_obj, ignore_errors=True)
+            out_name = f"merged_{uuid.uuid4()}.mp4"
+            out_path = OUTPUT_DIR / out_name
+            concat_videos(tmp_clips, str(out_path), transitions=transition_list, quality=global_opts.get("quality", "medium"))
+            _tasks[task_id].update({
+                "status": "done", "progress": 100,
+                "result": {"download_url": f"/outputs/{out_name}", "filename": out_name},
+            })
+        except Exception as e:
+            _tasks[task_id].update({"status": "error", "error": str(e)[:200]})
+        finally:
+            shutil.rmtree(tmp_dir_obj, ignore_errors=True)
 
-    return {"download_url": f"/outputs/{out_name}", "filename": out_name}
+    threading.Thread(target=_run, daemon=True).start()
+    return {"task_id": task_id}
 
 
 @app.post("/api/edit")
@@ -244,6 +273,13 @@ async def edit_media(body: dict):
         except Exception:
             pass
 
+    # 字幕文件路径（由 subtitle_file_id 解析）
+    srt_path = None
+    if opts.get("subtitle_file_id"):
+        candidate = OUTPUT_DIR / f"sub_{opts['subtitle_file_id']}.srt"
+        if candidate.exists():
+            srt_path = str(candidate)
+
     apply_edits(
         str(filepath), segments, str(out_path),
         remove_audio=opts.get("remove_audio", False),
@@ -261,7 +297,85 @@ async def edit_media(body: dict):
         bgm_path=bgm_path,
         bgm_volume=float(opts.get("bgm_volume", 0.5)),
         quality=opts.get("quality", "medium"),
+        subtitle_path=srt_path,
     )
+    return {"download_url": f"/outputs/{out_name}", "filename": out_name}
+
+
+# ── 字幕生成 ──────────────────────────────────────────────────────────────────
+
+@app.post("/api/transcribe/{file_id}")
+async def transcribe(file_id: str, body: dict = {}):
+    """Whisper 转写视频音频，生成 SRT 字幕文件"""
+    from services.ai_service import transcribe_video
+    filepath = _find_file(file_id)
+    info = get_media_info(str(filepath))
+    if not info.get("has_audio"):
+        raise HTTPException(400, "该文件没有音轨，无法生成字幕")
+    try:
+        srt_content = transcribe_video(
+            str(filepath),
+            api_key=body.get("api_key") or None,
+            language=body.get("language", "zh"),
+        )
+        srt_name = f"sub_{file_id}.srt"
+        srt_path = OUTPUT_DIR / srt_name
+        srt_path.write_text(srt_content, encoding="utf-8")
+        return {"srt_content": srt_content, "srt_url": f"/outputs/{srt_name}", "srt_file_id": file_id}
+    except Exception as e:
+        raise HTTPException(400, _friendly_ai_error(e))
+
+
+# ── 封面帧提取 ────────────────────────────────────────────────────────────────
+
+@app.post("/api/thumbnail/{file_id}")
+async def extract_thumbnail(file_id: str, body: dict = {}):
+    """提取视频最佳封面帧"""
+    from services.ai_service import pick_best_thumbnail
+    filepath = _find_file(file_id)
+    frames = extract_frames(str(filepath), interval=3.0, max_frames=12)
+    if not frames:
+        raise HTTPException(400, "无法提取视频帧")
+    try:
+        best_idx = pick_best_thumbnail(frames, api_key=body.get("api_key") or None)
+    except Exception:
+        best_idx = 0  # 失败时取第一帧
+    best_frame = frames[best_idx]
+    # 把 base64 写成 jpg 文件
+    import base64 as b64
+    img_data = b64.standard_b64decode(best_frame["data"])
+    thumb_name = f"thumb_{file_id}.jpg"
+    thumb_path = OUTPUT_DIR / thumb_name
+    thumb_path.write_bytes(img_data)
+    return {
+        "thumbnail_url": f"/outputs/{thumb_name}",
+        "timestamp": best_frame["timestamp"],
+        "frame_index": best_idx,
+        "total_frames": len(frames),
+    }
+
+
+# ── 视频压缩 / 格式转换 ───────────────────────────────────────────────────────
+
+@app.post("/api/compress")
+async def compress(body: dict):
+    """视频压缩/格式转换"""
+    filepath = _find_file(body.get("file_id") or "")
+    info = get_media_info(str(filepath))
+    if not info.get("has_video"):
+        raise HTTPException(400, "不是视频文件")
+    fmt = body.get("format", "mp4")
+    out_name = f"compressed_{uuid.uuid4()}.{fmt}"
+    out_path = OUTPUT_DIR / out_name
+    try:
+        compress_video(
+            str(filepath), str(out_path),
+            target_height=int(body.get("target_height", 720)),
+            crf=int(body.get("crf", 28)),
+            format=fmt,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"压缩失败：{str(e)[:200]}")
     return {"download_url": f"/outputs/{out_name}", "filename": out_name}
 
 

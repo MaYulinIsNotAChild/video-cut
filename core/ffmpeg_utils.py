@@ -121,6 +121,8 @@ def apply_edits(
     bgm_volume: float = 0.5,
     # 导出
     quality: str = "medium",
+    # 字幕
+    subtitle_path: Optional[str] = None,
 ) -> None:
     if not segments:
         raise ValueError("segments_to_keep 不能为空")
@@ -221,6 +223,14 @@ def apply_edits(
             if contrast  != 1.0:  eq_parts.append(f"contrast={contrast:.2f}")
             if saturation != 1.0: eq_parts.append(f"saturation={saturation:.2f}")
             global_vf.append(f"eq={':'.join(eq_parts)}")
+
+        # 字幕烧录
+        if subtitle_path:
+            # Windows 路径要转成正斜杠，且冒号要转义
+            srt = Path(subtitle_path).as_posix().replace(":", "\\:")
+            global_vf.append(
+                f"subtitles={srt}:force_style='Fontsize=20,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,Outline=2'"
+            )
 
         # 音量
         if volume != 1.0 and not remove_audio:
@@ -398,6 +408,26 @@ def _apply_audio_global(input_path: str, output_path: str, volume: float = 1.0) 
         ["ffmpeg", "-y", "-i", input_path, "-af", f"volume={volume:.2f}", "-q:a", "2", output_path],
         capture_output=True, check=True,
     )
+
+
+def compress_video(
+    input_path: str,
+    output_path: str,
+    target_height: int = 720,
+    crf: int = 28,
+    format: str = "mp4",
+) -> None:
+    """压缩视频：降分辨率 + 调整码率，支持 mp4/mov/webm"""
+    vcodec = "libvpx-vp9" if format == "webm" else "libx264"
+    acodec = "libopus" if format == "webm" else "aac"
+    cmd = [
+        "ffmpeg", "-y", "-i", input_path,
+        "-vf", f"scale=-2:{target_height}",
+        "-c:v", vcodec, "-crf", str(crf), "-preset", "fast",
+        "-c:a", acodec,
+        output_path,
+    ]
+    subprocess.run(cmd, capture_output=True, check=True)
 
 
 def _mix_bgm(

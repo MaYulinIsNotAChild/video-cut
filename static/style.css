@@ -217,3 +217,11 @@ textarea::placeholder { color: var(--muted); }
 .opt-badge { background: rgba(139,148,158,.12); color: var(--muted); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; font-size: 10px; }
 .btn-export-all { width: 100%; padding: 9px; margin-top: 10px; background: linear-gradient(90deg, rgba(88,166,255,.15), rgba(63,185,80,.15)); border: 1px solid rgba(88,166,255,.4); border-radius: var(--r); color: var(--text); cursor: pointer; font-size: 12px; font-weight: 600; transition: all .2s; }
 .btn-export-all:hover { background: linear-gradient(90deg, rgba(88,166,255,.28), rgba(63,185,80,.28)); border-color: var(--accent); }
+.btn-compress { width: 100%; padding: 7px; margin-top: 8px; background: rgba(139,148,158,.1); border: 1px solid var(--border); border-radius: var(--r); color: var(--text); cursor: pointer; font-size: 12px; transition: all .2s; }
+.btn-compress:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.btn-compress:disabled { opacity: .4; cursor: not-allowed; }
+.btn-subtitle { width: 100%; padding: 7px; margin-top: 4px; background: rgba(88,166,255,.08); border: 1px solid rgba(88,166,255,.25); border-radius: var(--r); color: var(--accent); cursor: pointer; font-size: 11px; transition: all .2s; }
+.btn-subtitle:hover { background: rgba(88,166,255,.18); }
+.subtitle-panel { background: var(--panel); border: 1px solid var(--border); border-radius: var(--r); padding: 11px; }
+.subtitle-preview { width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 4px; color: var(--text); padding: 6px 8px; font-size: 10px; font-family: monospace; resize: vertical; }
+.thumbnail-panel { background: var(--panel); border: 1px solid var(--border); border-radius: var(--r); padding: 11px; }

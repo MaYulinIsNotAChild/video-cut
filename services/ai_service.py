@@ -5,6 +5,59 @@ from typing import Any, Dict, List, Optional
 
 from openai import OpenAI
 
+
+def transcribe_video(
+    audio_path: str,
+    api_key: Optional[str] = None,
+    language: str = "zh",
+) -> str:
+    """调用 OpenAI Whisper 转写音频，返回 SRT 格式字幕内容"""
+    client = OpenAI(api_key=api_key or os.getenv("OPENAI_API_KEY"))
+    with open(audio_path, "rb") as f:
+        transcript = client.audio.transcriptions.create(
+            model="whisper-1",
+            file=f,
+            response_format="srt",
+            language=language,
+        )
+    return transcript
+
+
+def pick_best_thumbnail(
+    frames: List[Dict[str, Any]],
+    api_key: Optional[str] = None,
+) -> int:
+    """用 GPT Vision 从帧列表中选出最适合做封面的帧，返回 index"""
+    if not frames:
+        return 0
+    client = OpenAI(api_key=api_key or os.getenv("OPENAI_API_KEY"))
+    content: List[Any] = [{
+        "type": "text",
+        "text": (
+            f"You have {len(frames)} video frames. Pick the best one as a social media cover image.\n"
+            "Consider: clear subject, good composition, high visual impact, no motion blur.\n"
+            "Reply with ONLY a JSON object: {\"best_index\": 0} where index is 0-based."
+        ),
+    }]
+    for i, frame in enumerate(frames):
+        content.append({"type": "text", "text": f"Frame {i}:"})
+        content.append({
+            "type": "image_url",
+            "image_url": {"url": f"data:image/jpeg;base64,{frame['data']}", "detail": "low"},
+        })
+    response = client.chat.completions.create(
+        model="gpt-5.4-mini",
+        messages=[{"role": "user", "content": content}],
+        max_completion_tokens=64,
+    )
+    raw = response.choices[0].message.content.strip()
+    match = re.search(r"\{[\s\S]+\}", raw)
+    if match:
+        result = json.loads(match.group())
+        idx = int(result.get("best_index", 0))
+        return max(0, min(idx, len(frames) - 1))
+    return 0
+
 PLATFORM_PRESETS: Dict[str, Dict] = {
     "抖音":  {"max_duration": 60,  "aspect_ratio": "9:16",       "style": "强开头（前3秒抓眼球）、节奏快、有反转或高潮"},
     "小红书": {"max_duration": 90,  "aspect_ratio": "9:16 或 4:5", "style": "生活化、真实感、有质感画面、节奏轻松"},

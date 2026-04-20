@@ -48,6 +48,20 @@
         <div class="panel-title">📊 静音片段检测</div>
         <div id="silenceList"></div>
       </div>
+      <button class="btn-subtitle hidden" id="subtitleBtn">📝 AI 生成字幕（Whisper）</button>
+      <div class="subtitle-panel hidden" id="subtitlePanel">
+        <div class="panel-title">📝 字幕</div>
+        <textarea id="subtitlePreview" class="subtitle-preview" rows="4" readonly placeholder="点击生成字幕后显示..."></textarea>
+        <label class="option-row" style="margin-top:4px">
+          <span class="option-label">烧录字幕到视频</span>
+          <label class="toggle"><input type="checkbox" id="optBurnSubtitle"><span class="toggle-track"></span></label>
+        </label>
+      </div>
+      <button class="btn-subtitle hidden" id="thumbnailBtn" style="margin-top:4px;background:rgba(63,185,80,.08);border-color:rgba(63,185,80,.25);color:var(--green)">🖼 AI 提取最佳封面</button>
+      <div class="thumbnail-panel hidden" id="thumbnailPanel">
+        <img id="thumbnailImg" src="" style="width:100%;border-radius:var(--r);margin-top:6px">
+        <a id="thumbnailDownload" href="#" download class="btn-download" style="margin-top:6px;display:block">⬇ 下载封面图</a>
+      </div>
     </section>
 
     <section class="ai-panel">
@@ -217,6 +231,44 @@
                   <option value="medium" selected>标准（推荐）</option>
                   <option value="low">压缩（文件较小）</option>
                 </select>
+              </div>
+              <div class="acc-section" style="margin-top:10px;border-top:1px solid var(--border);padding-top:10px">
+                <div class="section-title-sm">🗜 压缩 / 格式转换（直接压缩原文件）</div>
+                <div class="option-row">
+                  <label class="option-label">目标分辨率</label>
+                  <select id="compressHeight" class="option-select">
+                    <option value="1080">1080p</option>
+                    <option value="720" selected>720p</option>
+                    <option value="480">480p</option>
+                    <option value="360">360p</option>
+                  </select>
+                </div>
+                <div class="option-row">
+                  <label class="option-label">压缩强度</label>
+                  <select id="compressCrf" class="option-select">
+                    <option value="23">轻度（高质量）</option>
+                    <option value="28" selected>中度（推荐）</option>
+                    <option value="33">重度（小文件）</option>
+                  </select>
+                </div>
+                <div class="option-row">
+                  <label class="option-label">输出格式</label>
+                  <select id="compressFormat" class="option-select">
+                    <option value="mp4">MP4</option>
+                    <option value="mov">MOV</option>
+                  </select>
+                </div>
+                <button class="btn-compress" id="compressBtn" disabled>🗜 压缩当前视频</button>
+                <div class="download-panel hidden" id="compressDownloadPanel" style="margin-top:6px">
+                  <a class="btn-download" id="compressDownloadLink" href="#" download>⬇ 下载压缩后的视频</a>
+                </div>
+              </div>
+              <div class="option-row" style="margin-top:8px">
+                <label class="option-label">参数模板</label>
+                <select id="templateSelect" class="option-select" onchange="loadTemplate(this.value)" style="width:110px">
+                  <option value="">-- 加载模板 --</option>
+                </select>
+                <button class="btn-reset-s" onclick="saveTemplate()" title="保存当前参数为模板">＋保存</button>
               </div>
             </div>
           </div>

@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "WebFetch(domain:developers.openai.com)",
+      "Bash(ffmpeg -version)",
+      "Bash(ffprobe -version)",
+      "Bash(python *)",
+      "Bash(.venv/Scripts/pip install *)",
+      "Bash(.venv/Scripts/python *)",
+      "Bash(curl -s http://127.0.0.1:8000/ -o /dev/null -w \"%{http_code}\")",
+      "Bash(pkill -f \"python main.py\")",
+      "Bash(curl *)",
+      "Bash(pkill -f \"uvicorn\\\\|main.py\")",
+      "Bash(netstat -ano)",
+      "Bash(taskkill *)",
+      "Bash(.venv/Scripts/python.exe -m uvicorn main:app --host 127.0.0.1 --port 8000 --reload)",
+      "Bash(.venv/Scripts/python.exe main.py)",
+      "Bash(cmd //c \"taskkill //F //IM python.exe\")",
+      "Skill(update-config)",
+      "Bash(gh auth *)",
+      "Bash(gh api *)",
+      "Bash(git init *)",
+      "Bash(git add *)"
+    ]
+  }
+}

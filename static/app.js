@@ -663,6 +663,14 @@ function renderMultiPlan(result) {
       `<span class="seg-badge">${si + 1}: ${seg.start.toFixed(1)}s→${seg.end.toFixed(1)}s</span>`
     ).join(" ");
 
+    const opts = plan.recommended_options || {};
+    const optBadges = [
+      opts.color_preset && opts.color_preset !== "none" ? `🎨${opts.color_preset}` : null,
+      opts.speed && opts.speed !== 1.0 ? `⚡${opts.speed}×` : null,
+      opts.remove_audio ? "🔇无声" : null,
+      opts.transition_to_next ? `→${opts.transition_to_next}` : null,
+    ].filter(Boolean).map((b) => `<span class="opt-badge">${b}</span>`).join(" ");
+
     return `
       <div class="multi-video-card">
         <div class="mvc-header">
@@ -673,6 +681,7 @@ function renderMultiPlan(result) {
         </div>
         <div class="mvc-summary">${v.content_summary || ""}</div>
         ${segs.length ? `<div class="mvc-segs">${segList}</div>` : ""}
+        ${optBadges ? `<div class="mvc-segs">${optBadges}</div>` : ""}
         ${suggestions}
         ${plan.notes ? `<div class="mvc-notes">${plan.notes}</div>` : ""}
       </div>`;
@@ -706,6 +715,8 @@ function renderMultiPlan(result) {
 
   // 保存到全局供"用此方案剪辑"使用
   window._multiResult = result;
+  $("exportAllBtn").classList.remove("hidden");
+  $("multiDownloadPanel").classList.add("hidden");
 }
 
 function applyMultiPlan(fileId, videoIdx) {
@@ -719,3 +730,31 @@ function applyMultiPlan(fileId, videoIdx) {
   $("suggestionsPanel").classList.remove("hidden");
   $("suggestionsPanel").scrollIntoView({ behavior: "smooth" });
 }
+
+$("exportAllBtn").addEventListener("click", async () => {
+  const result = window._multiResult;
+  if (!result) return;
+  const order = result.sequence?.recommended_order || result.videos.map((_, i) => i);
+  const orderedVideos = order.map((i) => result.videos[i]).filter(Boolean);
+  if (!orderedVideos.length) return;
+
+  showLoading(
+    `正在按推荐顺序剪辑并合并 ${orderedVideos.length} 个视频...`,
+    "loading", "loadingText"
+  );
+  try {
+    const res = await post("/api/export-multi", {
+      videos: orderedVideos.map((v) => ({
+        file_id: v.file_id,
+        segments_to_keep: v.editing_plan?.segments_to_keep || [],
+        recommended_options: v.editing_plan?.recommended_options || {},
+      })),
+      options: { quality: $("optQuality").value },
+    });
+    $("multiDownloadLink").href = res.download_url;
+    $("multiDownloadLink").setAttribute("download", res.filename);
+    $("multiDownloadPanel").classList.remove("hidden");
+    $("multiDownloadPanel").scrollIntoView({ behavior: "smooth" });
+  } catch (err) { alert("合并失败：" + err.message); }
+  finally { hideLoading("loading"); }
+});

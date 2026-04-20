@@ -2,6 +2,7 @@ import shutil
 import tempfile
 import uuid
 from pathlib import Path
+from typing import List, Optional
 
 import aiofiles
 from dotenv import load_dotenv
@@ -10,7 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from core.ffmpeg_utils import apply_edits, detect_silence, extract_frames, get_media_info
+from core.ffmpeg_utils import apply_edits, concat_videos, detect_silence, extract_frames, get_media_info
 from core.photo_utils import create_photo_clip, create_slideshow
 from services.ai_service import get_editing_plan, get_multi_video_plan, get_slideshow_plan
 
@@ -161,6 +162,66 @@ async def suggest_multi(body: dict):
         )
     except Exception as e:
         raise HTTPException(400, _friendly_ai_error(e))
+
+
+@app.post("/api/export-multi")
+async def export_multi(body: dict):
+    """按 AI 推荐顺序对所有视频应用剪辑方案并拼接为一个最终视频"""
+    videos_plan = body.get("videos", [])
+    if not videos_plan:
+        raise HTTPException(400, "没有视频方案")
+    if len(videos_plan) > 8:
+        raise HTTPException(400, "最多支持 8 个视频")
+
+    global_opts = body.get("options", {})
+    tmp_clips: List[str] = []
+    transition_list: List[str] = []
+    tmp_dir_obj = tempfile.mkdtemp()
+
+    try:
+        pending_trans: Optional[str] = None  # 上一个有效 clip 的 transition_to_next
+        for i, vp in enumerate(videos_plan):
+            filepath = _find_file(vp.get("file_id", ""))
+            segments = vp.get("segments_to_keep", [])
+            opts = vp.get("recommended_options", {})
+
+            if not segments:
+                continue  # 跳过无片段的视频，不加入 transition_list
+
+            clip_path = str(Path(tmp_dir_obj) / f"clip_{len(tmp_clips):03d}.mp4")
+            apply_edits(
+                str(filepath), segments, clip_path,
+                remove_audio=opts.get("remove_audio", global_opts.get("remove_audio", False)),
+                transition=global_opts.get("transition", "none"),
+                speed=float(opts.get("speed", global_opts.get("speed", 1.0))),
+                color_preset=opts.get("color_preset", global_opts.get("color_preset", "none")),
+                brightness=float(global_opts.get("brightness", 0.0)),
+                contrast=float(global_opts.get("contrast", 1.0)),
+                saturation=float(global_opts.get("saturation", 1.0)),
+                volume=float(global_opts.get("volume", 1.0)),
+                quality=global_opts.get("quality", "medium"),
+            )
+            # 在两个有效 clip 之间补上上一个视频的 transition_to_next
+            if tmp_clips and pending_trans is not None:
+                transition_list.append(pending_trans)
+            tmp_clips.append(clip_path)
+            pending_trans = opts.get("transition_to_next", "cut")
+
+        if not tmp_clips:
+            raise HTTPException(400, "没有有效的视频片段")
+
+        out_name = f"merged_{uuid.uuid4()}.mp4"
+        out_path = OUTPUT_DIR / out_name
+
+        concat_videos(
+            tmp_clips, str(out_path),
+            transitions=transition_list,
+            quality=global_opts.get("quality", "medium"),
+        )
+    finally:
+        shutil.rmtree(tmp_dir_obj, ignore_errors=True)
+
+    return {"download_url": f"/outputs/{out_name}", "filename": out_name}
 
 
 @app.post("/api/edit")

@@ -212,6 +212,11 @@ def get_multi_video_plan(
         "type": "text",
         "text": (
             f"\n\nVideo durations: {duration_hints}\n\n"
+            "## Available effects you can recommend per video:\n"
+            "- color_preset: none | warm | cool | vintage | bw | vivid\n"
+            "- speed: 0.5 | 0.75 | 1.0 | 1.25 | 1.5 | 2.0\n"
+            "- transition_to_next: cut | fade  (transition into the NEXT video)\n"
+            "- remove_audio: true | false\n\n"
             "Return ONLY valid JSON:\n"
             '{\n'
             '  "videos": [\n'
@@ -221,7 +226,13 @@ def get_multi_video_plan(
             '        "segments_to_keep": [{"start": 0.0, "end": 5.0}],\n'
             '        "estimated_duration": 15.0,\n'
             '        "suggestions": ["Chinese tip"],\n'
-            '        "notes": "Chinese explanation"\n'
+            '        "notes": "Chinese explanation",\n'
+            '        "recommended_options": {\n'
+            '          "color_preset": "none",\n'
+            '          "speed": 1.0,\n'
+            '          "remove_audio": false,\n'
+            '          "transition_to_next": "cut"\n'
+            '        }\n'
             '      }\n'
             '    }\n'
             '  ],\n'
@@ -239,7 +250,8 @@ def get_multi_video_plan(
             "- Remove silent segments unless content is important\n"
             "- recommended_order uses 0-based indices\n"
             f"- Duration constraints: {duration_hints}\n"
-            "- transition types: fade | cut | wipe | zoom"
+            "- Choose color_preset and speed based on video content and platform style\n"
+            "- transition_to_next: recommend 'fade' for smooth narrative, 'cut' for energetic pacing"
         ),
     })
 

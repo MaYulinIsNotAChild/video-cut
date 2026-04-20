@@ -303,6 +303,93 @@ def extract_frames(
     return frames
 
 
+def concat_videos(
+    input_paths: List[str],
+    output_path: str,
+    transitions: Optional[List[str]] = None,
+    transition_duration: float = 0.5,
+    quality: str = "medium",
+) -> None:
+    """将多个视频按顺序拼接，支持 cut（直接拼）和 fade（淡入淡出）转场"""
+    if not input_paths:
+        raise ValueError("没有输入视频")
+    if len(input_paths) == 1:
+        shutil.copy(input_paths[0], output_path)
+        return
+
+    crf = QUALITY_CRF.get(quality, 23)
+    # transitions 长度应为 len(input_paths) - 1
+    if not transitions:
+        transitions = ["cut"] * (len(input_paths) - 1)
+
+    use_fade = any(t == "fade" for t in transitions)
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        if not use_fade:
+            # 快速拼接：concat demuxer（Windows 需用正斜杠）
+            list_file = Path(tmp_dir) / "concat.txt"
+            lines = "\n".join(f"file '{Path(p).as_posix()}'" for p in input_paths)
+            list_file.write_text(lines, encoding="utf-8")
+            cmd = [
+                "ffmpeg", "-y", "-f", "concat", "-safe", "0",
+                "-i", str(list_file),
+                "-c:v", "libx264", "-crf", str(crf), "-preset", "fast",
+                "-c:a", "aac",
+                output_path,
+            ]
+            subprocess.run(cmd, capture_output=True, check=True)
+        else:
+            # xfade 转场拼接
+            durations = [float(get_media_info(p).get("duration", 0)) for p in input_paths]
+            has_audio = get_media_info(input_paths[0]).get("has_audio", True)
+            inputs_args = []
+            for p in input_paths:
+                inputs_args += ["-i", p]
+
+            n = len(input_paths)
+            vfilters = []
+            afilters = []
+            offset = 0.0
+
+            for i in range(n - 1):
+                offset += durations[i] - transition_duration
+                # xfade 不支持 "cut"，统一映射为 "fade"
+                raw_trans = transitions[i] if i < len(transitions) else "fade"
+                trans = "fade" if raw_trans == "cut" else raw_trans
+
+                src_v = f"[v{i}]" if i > 0 else f"[{i}:v]"
+                dst_v = f"[{i+1}:v]"
+                out_v = f"[v{i+1}]" if i < n - 2 else "[vout]"
+                vfilters.append(
+                    f"{src_v}{dst_v}xfade=transition={trans}"
+                    f":duration={transition_duration}:offset={offset:.3f}{out_v}"
+                )
+
+                if has_audio:
+                    src_a = f"[a{i}]" if i > 0 else f"[{i}:a]"
+                    dst_a = f"[{i+1}:a]"
+                    out_a = f"[a{i+1}]" if i < n - 2 else "[aout]"
+                    afilters.append(
+                        f"{src_a}{dst_a}acrossfade=d={transition_duration}{out_a}"
+                    )
+
+            filter_complex = ";".join(vfilters + (afilters if has_audio else []))
+            map_args = ["-map", "[vout]"]
+            if has_audio:
+                map_args += ["-map", "[aout]"]
+            audio_enc = ["-c:a", "aac"] if has_audio else ["-an"]
+
+            cmd = [
+                "ffmpeg", "-y", *inputs_args,
+                "-filter_complex", filter_complex,
+                *map_args,
+                "-c:v", "libx264", "-crf", str(crf), "-preset", "fast",
+                *audio_enc,
+                output_path,
+            ]
+            subprocess.run(cmd, capture_output=True, check=True)
+
+
 def _apply_audio_global(input_path: str, output_path: str, volume: float = 1.0) -> None:
     if volume == 1.0:
         shutil.copy(input_path, output_path)

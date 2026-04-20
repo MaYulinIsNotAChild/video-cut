@@ -214,3 +214,6 @@ textarea::placeholder { color: var(--muted); }
 .order-badge { background: rgba(88,166,255,.12); color: var(--accent); border: 1px solid rgba(88,166,255,.25); border-radius: 4px; padding: 2px 7px; font-size: 11px; }
 .trans-row { display: flex; align-items: flex-start; gap: 7px; margin-bottom: 5px; font-size: 11px; color: var(--muted); }
 .trans-badge { background: rgba(248,81,73,.12); color: var(--red); border-radius: 4px; padding: 1px 5px; font-size: 10px; flex-shrink: 0; }
+.opt-badge { background: rgba(139,148,158,.12); color: var(--muted); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; font-size: 10px; }
+.btn-export-all { width: 100%; padding: 9px; margin-top: 10px; background: linear-gradient(90deg, rgba(88,166,255,.15), rgba(63,185,80,.15)); border: 1px solid rgba(88,166,255,.4); border-radius: var(--r); color: var(--text); cursor: pointer; font-size: 12px; font-weight: 600; transition: all .2s; }
+.btn-export-all:hover { background: linear-gradient(90deg, rgba(88,166,255,.28), rgba(63,185,80,.28)); border-color: var(--accent); }

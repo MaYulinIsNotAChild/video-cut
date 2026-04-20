@@ -135,3 +135,141 @@ Rules:
     if not match:
         raise ValueError(f"模型返回无法解析为 JSON: {raw[:200]}")
     return json.loads(match.group())
+
+
+def get_multi_video_plan(
+    videos: List[Dict[str, Any]],
+    user_description: str,
+    platform: str,
+    api_key: Optional[str] = None,
+) -> Dict[str, Any]:
+    """使用 GPT vision 分析多个视频内容，返回每个视频的剪辑方案及衔接建议"""
+    client = OpenAI(api_key=api_key or os.getenv("OPENAI_API_KEY"))
+    preset = PLATFORM_PRESETS.get(platform, PLATFORM_PRESETS["抖音"])
+
+    # OpenAI vision 格式：content 是一个 list，图片用 image_url + base64 data URL
+    msg_content: List[Any] = []
+
+    msg_content.append({
+        "type": "text",
+        "text": (
+            f"You are a professional short-video editor analyzing {len(videos)} videos for {platform}.\n"
+            f"Platform style: {preset['style']}\n"
+            f"Max total duration: {preset['max_duration']}s\n"
+            f"User request: {user_description.strip() or 'Auto-optimize for the target platform.'}\n\n"
+            "Below are frames sampled every few seconds from each video.\n"
+            "Analyze visual content and silence info to understand each video's story.\n"
+        ),
+    })
+
+    video_durations: Dict[int, float] = {}
+    for idx, video in enumerate(videos):
+        info = video["info"]
+        silences = video["silences"]
+        frames = video["frames"]
+        filename = video.get("filename", f"video_{idx + 1}")
+        duration = float(info.get("duration", 0))
+        video_durations[idx] = duration
+
+        silence_desc = ", ".join(
+            f"{s['start']:.1f}s-{s['end']:.1f}s"
+            for s in silences[:10]
+            if s.get("end")
+        ) or "none"
+
+        frame_interval = (
+            round(frames[1]["timestamp"] - frames[0]["timestamp"], 1)
+            if len(frames) > 1 else 5.0
+        )
+
+        msg_content.append({
+            "type": "text",
+            "text": (
+                f"\n=== VIDEO {idx + 1}: {filename} ===\n"
+                f"Duration: {duration:.1f}s | "
+                f"Resolution: {info.get('width', '?')}x{info.get('height', '?')} | "
+                f"Silent segments: {silence_desc}\n"
+                f"Frames every {frame_interval}s:\n"
+            ),
+        })
+
+        for frame in frames:
+            msg_content.append({
+                "type": "text",
+                "text": f"[{frame['timestamp']}s] ",
+            })
+            msg_content.append({
+                "type": "image_url",
+                "image_url": {
+                    "url": f"data:image/jpeg;base64,{frame['data']}",
+                    "detail": "low",  # 降低 token 消耗
+                },
+            })
+
+    duration_hints = " | ".join(f"video[{i}]={d:.1f}s" for i, d in video_durations.items())
+
+    msg_content.append({
+        "type": "text",
+        "text": (
+            f"\n\nVideo durations: {duration_hints}\n\n"
+            "Return ONLY valid JSON:\n"
+            '{\n'
+            '  "videos": [\n'
+            '    {\n'
+            '      "content_summary": "brief Chinese description of this video content",\n'
+            '      "editing_plan": {\n'
+            '        "segments_to_keep": [{"start": 0.0, "end": 5.0}],\n'
+            '        "estimated_duration": 15.0,\n'
+            '        "suggestions": ["Chinese tip"],\n'
+            '        "notes": "Chinese explanation"\n'
+            '      }\n'
+            '    }\n'
+            '  ],\n'
+            '  "sequence": {\n'
+            '    "recommended_order": [0, 1, 2],\n'
+            '    "transitions": [\n'
+            '      {"between_indices": [0, 1], "type": "fade", "reason": "Chinese reason"}\n'
+            '    ],\n'
+            '    "total_estimated_duration": 45.0,\n'
+            '    "overall_notes": "Chinese overall advice"\n'
+            '  }\n'
+            '}\n\n'
+            "Rules:\n"
+            "- segments_to_keep must be within [0, video_duration], sorted, non-overlapping\n"
+            "- Remove silent segments unless content is important\n"
+            "- recommended_order uses 0-based indices\n"
+            f"- Duration constraints: {duration_hints}\n"
+            "- transition types: fade | cut | wipe | zoom"
+        ),
+    })
+
+    response = client.chat.completions.create(
+        model="gpt-5.4-mini",
+        messages=[{"role": "user", "content": msg_content}],
+        max_completion_tokens=3000,
+    )
+
+    raw = response.choices[0].message.content.strip()
+    raw = re.sub(r"^```(?:json)?\s*", "", raw)
+    raw = re.sub(r"\s*```$", "", raw)
+    match = re.search(r"\{[\s\S]+\}", raw)
+    if not match:
+        raise ValueError(f"模型返回无法解析为 JSON: {raw[:300]}")
+
+    result = json.loads(match.group())
+
+    # 注入 file_id 并修剪片段边界
+    for i, v in enumerate(result.get("videos", [])):
+        if i < len(videos):
+            v["file_id"] = videos[i]["file_id"]
+            duration = video_durations[i]
+            v["editing_plan"]["segments_to_keep"] = [
+                {
+                    "start": round(max(0.0, seg["start"]), 2),
+                    "end":   round(min(duration, seg["end"]), 2),
+                }
+                for seg in v["editing_plan"].get("segments_to_keep", [])
+                if seg.get("end", 0) > seg.get("start", 0)
+            ]
+
+    return result

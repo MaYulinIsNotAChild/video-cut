@@ -10,9 +10,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from core.ffmpeg_utils import apply_edits, detect_silence, get_media_info
+from core.ffmpeg_utils import apply_edits, detect_silence, extract_frames, get_media_info
 from core.photo_utils import create_photo_clip, create_slideshow
-from services.ai_service import get_editing_plan, get_slideshow_plan
+from services.ai_service import get_editing_plan, get_multi_video_plan, get_slideshow_plan
 
 load_dotenv()
 
@@ -129,6 +129,40 @@ async def suggest(body: dict):
         raise HTTPException(400, _friendly_ai_error(e))
 
 
+@app.post("/api/suggest-multi")
+async def suggest_multi(body: dict):
+    """分析多个视频内容并给出每个视频的剪辑方案及衔接建议（使用 Claude Vision）"""
+    file_ids = body.get("file_ids", [])
+    if not file_ids:
+        raise HTTPException(400, "没有视频文件")
+    if len(file_ids) > 8:
+        raise HTTPException(400, "最多支持 8 个视频同时分析")
+
+    videos = []
+    for fid in file_ids:
+        filepath = _find_file(fid)
+        info = get_media_info(str(filepath))
+        silences = detect_silence(str(filepath))
+        frames = extract_frames(str(filepath)) if info.get("has_video") else []
+        videos.append({
+            "file_id": fid,
+            "filename": filepath.name,
+            "info": info,
+            "silences": silences,
+            "frames": frames,
+        })
+
+    try:
+        return get_multi_video_plan(
+            videos,
+            body.get("description", ""),
+            body.get("platform", "抖音"),
+            api_key=body.get("api_key") or None,
+        )
+    except Exception as e:
+        raise HTTPException(400, _friendly_ai_error(e))
+
+
 @app.post("/api/edit")
 async def edit_media(body: dict):
     segments = body.get("segments_to_keep", [])
@@ -235,12 +269,12 @@ app.mount("/outputs", StaticFiles(directory="outputs"), name="outputs")
 
 def _friendly_ai_error(e: Exception) -> str:
     msg = str(e)
-    if "401" in msg or "invalid_api_key" in msg or "Incorrect API key" in msg:
-        return "API Key 无效或未填写，请检查右上角的 OpenAI Key"
-    if "429" in msg or "rate_limit" in msg:
-        return "请求过于频繁，请稍后再试（OpenAI 限流）"
-    if "insufficient_quota" in msg:
-        return "OpenAI 账户余额不足，请充值后再试"
+    if "401" in msg or "invalid_api_key" in msg or "Incorrect API key" in msg or "authentication_error" in msg:
+        return "API Key 无效或未填写，请检查 API Key"
+    if "429" in msg or "rate_limit" in msg or "overloaded" in msg:
+        return "请求过于频繁或模型繁忙，请稍后再试"
+    if "insufficient_quota" in msg or "credit" in msg:
+        return "账户余额不足，请充值后再试"
     if "model_not_found" in msg or "does not exist" in msg:
         return f"模型不存在，请检查模型名称：{msg[:120]}"
     return f"AI 调用失败：{msg[:200]}"

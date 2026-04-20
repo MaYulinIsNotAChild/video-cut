@@ -198,7 +198,7 @@ document.querySelectorAll(".platform-btn").forEach((btn) => {
 $("analyzeBtn").addEventListener("click", async () => {
   if (!edit.activeId) return;
   if (!getApiKey()) { alert("请先在右上角填入 OpenAI API Key"); return; }
-  showLoading("AI 正在分析...", "loading", "loadingText");
+  showLoading("AI 正在分析当前视频...", "loading", "loadingText");
   try {
     const plan = await post("/api/suggest", {
       file_id: edit.activeId,
@@ -211,6 +211,27 @@ $("analyzeBtn").addEventListener("click", async () => {
     $("suggestionsPanel").classList.remove("hidden");
     $("suggestionsPanel").scrollIntoView({ behavior: "smooth" });
   } catch (err) { alert("AI 分析失败：" + err.message); }
+  finally { hideLoading("loading"); }
+});
+
+$("analyzeAllBtn").addEventListener("click", async () => {
+  if (edit.files.length < 2) return;
+  if (!getApiKey()) { alert("请先在右上角填入 OpenAI API Key"); return; }
+  showLoading(
+    `正在抽帧分析 ${edit.files.length} 个视频（每5秒抽一帧，压缩480p）...`,
+    "loading", "loadingText"
+  );
+  try {
+    const result = await post("/api/suggest-multi", {
+      file_ids: edit.files.map((f) => f.file_id),
+      description: $("descriptionInput").value,
+      platform: edit.platform,
+      api_key: getApiKey(),
+    });
+    renderMultiPlan(result);
+    $("multiPanel").classList.remove("hidden");
+    $("multiPanel").scrollIntoView({ behavior: "smooth" });
+  } catch (err) { alert("多视频分析失败：" + err.message); }
   finally { hideLoading("loading"); }
 });
 
@@ -293,6 +314,9 @@ function renderMediaList() {
       </div>
       <button class="media-item-del" onclick="removeMediaFile('${f.file_id}',event)">×</button>
     </div>`).join("");
+  // 有 2 个及以上视频时显示"分析全部"按钮
+  const videoFiles = edit.files.filter((f) => f.media_type === "video");
+  $("analyzeAllBtn").classList.toggle("hidden", videoFiles.length < 2);
 }
 
 function removeMediaFile(fileId, e) {
@@ -618,3 +642,80 @@ async function post(url, body) {
 
 function showLoading(text, lid, tid) { $(tid).textContent = text; $(lid).classList.remove("hidden"); }
 function hideLoading(lid) { $(lid).classList.add("hidden"); }
+
+// ── 多视频综合分析渲染 ────────────────────────────────────────────────────────
+
+function renderMultiPlan(result) {
+  const videos = result.videos || [];
+  const seq = result.sequence || {};
+  const order = seq.recommended_order || videos.map((_, i) => i);
+  const transitions = seq.transitions || [];
+
+  // 视频分析卡片
+  const videoCards = videos.map((v, i) => {
+    const f = edit.files.find((x) => x.file_id === v.file_id);
+    const name = f ? f.name : `视频 ${i + 1}`;
+    const plan = v.editing_plan || {};
+    const segs = plan.segments_to_keep || [];
+    const dur = segs.reduce((s, seg) => s + (seg.end - seg.start), 0);
+    const suggestions = (plan.suggestions || []).map((s) => `<div class="suggestion-item">${s}</div>`).join("");
+    const segList = segs.map((seg, si) =>
+      `<span class="seg-badge">${si + 1}: ${seg.start.toFixed(1)}s→${seg.end.toFixed(1)}s</span>`
+    ).join(" ");
+
+    return `
+      <div class="multi-video-card">
+        <div class="mvc-header">
+          <span class="mvc-index">${i + 1}</span>
+          <span class="mvc-name">${name}</span>
+          <span class="mvc-dur">${dur.toFixed(1)}s</span>
+          <button class="btn-link-sm" onclick="applyMultiPlan('${v.file_id}', ${i})">用此方案剪辑</button>
+        </div>
+        <div class="mvc-summary">${v.content_summary || ""}</div>
+        ${segs.length ? `<div class="mvc-segs">${segList}</div>` : ""}
+        ${suggestions}
+        ${plan.notes ? `<div class="mvc-notes">${plan.notes}</div>` : ""}
+      </div>`;
+  }).join("");
+
+  // 推荐拼接顺序
+  const orderBadges = order.map((idx) => {
+    const f = edit.files.find((x) => x.file_id === (videos[idx] || {}).file_id);
+    const name = f ? f.name.substring(0, 12) : `视频${idx + 1}`;
+    return `<span class="order-badge">${idx + 1}. ${name}</span>`;
+  }).join(" → ");
+
+  // 衔接方式
+  const transRows = transitions.map((t) => {
+    const [a, b] = t.between_indices || [];
+    return `<div class="trans-row">
+      <span class="trans-badge">${t.type || "cut"}</span>
+      <span>视频${(a ?? 0) + 1} → 视频${(b ?? 1) + 1}：${t.reason || ""}</span>
+    </div>`;
+  }).join("");
+
+  $("multiPanelContent").innerHTML = `
+    <div class="multi-section-title">各视频内容分析</div>
+    ${videoCards}
+    <div class="multi-section-title" style="margin-top:12px">推荐拼接顺序</div>
+    <div class="order-row">${orderBadges}</div>
+    ${transRows}
+    ${seq.total_estimated_duration ? `<div class="mvc-notes">拼接后预计总时长：${seq.total_estimated_duration.toFixed(1)}s</div>` : ""}
+    ${seq.overall_notes ? `<div class="mvc-notes">${seq.overall_notes}</div>` : ""}
+  `;
+
+  // 保存到全局供"用此方案剪辑"使用
+  window._multiResult = result;
+}
+
+function applyMultiPlan(fileId, videoIdx) {
+  const result = window._multiResult;
+  if (!result) return;
+  const v = result.videos[videoIdx];
+  if (!v) return;
+  selectMediaFile(fileId);
+  edit.editPlan = v.editing_plan;
+  renderPlan(v.editing_plan);
+  $("suggestionsPanel").classList.remove("hidden");
+  $("suggestionsPanel").scrollIntoView({ behavior: "smooth" });
+}

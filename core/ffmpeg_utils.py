@@ -1,10 +1,11 @@
+import base64
 import json
 import re
 import shutil
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import Dict, Any, List, Optional
+from typing import Any, Dict, List, Optional
 
 # 色彩预设滤镜
 COLOR_PRESETS: Dict[str, str] = {
@@ -262,6 +263,44 @@ def _build_crop_filter(ratio: str) -> str:
         f"scale={w}:{h}:force_original_aspect_ratio=decrease,"
         f"pad={w}:{h}:(ow-iw)/2:(oh-ih)/2:black"
     )
+
+
+def extract_frames(
+    video_path: str,
+    interval: float = 5.0,
+    max_height: int = 480,
+    max_frames: int = 20,
+) -> List[Dict[str, Any]]:
+    """每 interval 秒抽取一帧，高度压缩到 max_height，返回带时间戳的 base64 JPEG 列表"""
+    info = get_media_info(video_path)
+    if not info.get("has_video"):
+        return []
+    duration = float(info.get("duration", 0))
+    if duration <= 0:
+        return []
+
+    actual_interval = max(interval, duration / max_frames)
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        out_pattern = str(Path(tmp_dir) / "frame_%04d.jpg")
+        cmd = [
+            "ffmpeg", "-i", video_path,
+            "-vf", f"fps=1/{actual_interval:.3f},scale=-2:{max_height}",
+            "-q:v", "4",
+            "-frames:v", str(max_frames),
+            out_pattern,
+            "-y", "-loglevel", "error",
+        ]
+        if subprocess.run(cmd, capture_output=True).returncode != 0:
+            return []
+
+        frames: List[Dict[str, Any]] = []
+        for i, frame_file in enumerate(sorted(Path(tmp_dir).glob("frame_*.jpg"))):
+            timestamp = round(i * actual_interval, 1)
+            data = base64.standard_b64encode(frame_file.read_bytes()).decode("utf-8")
+            frames.append({"timestamp": timestamp, "data": data})
+
+    return frames
 
 
 def _apply_audio_global(input_path: str, output_path: str, volume: float = 1.0) -> None:

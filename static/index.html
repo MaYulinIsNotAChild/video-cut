@@ -63,7 +63,8 @@
       <div class="description-area">
         <div class="section-title">描述你想要的效果</div>
         <textarea id="descriptionInput" placeholder="例如：删除所有停顿，保留精彩部分，控制在15秒以内" rows="3"></textarea>
-        <button class="btn-primary" id="analyzeBtn" disabled>🤖 AI 分析并给出建议</button>
+        <button class="btn-primary" id="analyzeBtn" disabled>🤖 AI 分析当前视频</button>
+        <button class="btn-multi hidden" id="analyzeAllBtn">🎬 分析全部视频并给衔接建议</button>
       </div>
 
       <div class="suggestions-panel hidden" id="suggestionsPanel">
@@ -228,6 +229,15 @@
       <div class="download-panel hidden" id="downloadPanel">
         <div class="section-title">🎉 剪辑完成</div>
         <a class="btn-download" id="downloadLink" href="#" download>⬇ 下载剪辑后的文件</a>
+      </div>
+
+      <!-- 多视频综合分析结果 -->
+      <div class="multi-panel hidden" id="multiPanel">
+        <div class="multi-panel-header">
+          <span class="section-title" style="margin:0">🎬 多视频综合分析</span>
+          <button class="btn-link" onclick="$('multiPanel').classList.add('hidden')">关闭</button>
+        </div>
+        <div id="multiPanelContent"></div>
       </div>
 
       <div class="loading hidden" id="loading">

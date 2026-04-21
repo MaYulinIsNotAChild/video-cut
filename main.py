@@ -298,6 +298,8 @@ async def edit_media(body: dict):
         bgm_volume=float(opts.get("bgm_volume", 0.5)),
         quality=opts.get("quality", "medium"),
         subtitle_path=srt_path,
+        vignette=bool(opts.get("vignette", False)),
+        sharpen=bool(opts.get("sharpen", False)),
     )
     return {"download_url": f"/outputs/{out_name}", "filename": out_name}
 

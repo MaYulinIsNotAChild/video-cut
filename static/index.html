@@ -136,8 +136,14 @@
               <div class="option-row">
                 <label class="option-label">转场效果</label>
                 <select id="optTransition" class="option-select">
-                  <option value="none">无</option>
+                  <option value="none">无（直切）</option>
                   <option value="fade">淡入淡出</option>
+                  <option value="fadeblack">经黑场</option>
+                  <option value="wipeleft">向左划入</option>
+                  <option value="wiperight">向右划入</option>
+                  <option value="slideright">向右滑动</option>
+                  <option value="zoomin">放大转场</option>
+                  <option value="dissolve">溶解</option>
                 </select>
               </div>
               <div class="option-row">
@@ -161,6 +167,13 @@
             <div class="acc-body hidden" id="acc-color">
               <div class="preset-row">
                 <button class="preset-btn active" data-preset="none">原始</button>
+                <button class="preset-btn" data-preset="cinematic">🎬电影</button>
+                <button class="preset-btn" data-preset="sunset">🌅日落</button>
+                <button class="preset-btn" data-preset="moody">🌑暗调</button>
+                <button class="preset-btn" data-preset="fresh">✨清新</button>
+                <button class="preset-btn" data-preset="haze">🌫朦胧</button>
+              </div>
+              <div class="preset-row" style="margin-top:4px">
                 <button class="preset-btn" data-preset="warm">暖色</button>
                 <button class="preset-btn" data-preset="cool">冷色</button>
                 <button class="preset-btn" data-preset="vintage">复古</button>
@@ -210,6 +223,11 @@
                 <button class="tog-btn" id="btnCrop11"   onclick="setCrop('1:1')">1:1</button>
                 <button class="tog-btn" id="btnCrop169"  onclick="setCrop('16:9')">16:9</button>
                 <button class="tog-btn" id="btnCropNone" onclick="setCrop('')" >原始</button>
+              </div>
+              <div class="btn-group-row" style="margin-top:6px">
+                <span class="option-label">质感增强</span>
+                <button class="tog-btn" id="btnSharpen" onclick="toggleEffect('sharpen')">🔍 锐化</button>
+                <button class="tog-btn" id="btnVignette" onclick="toggleEffect('vignette')">🎭 暗角</button>
               </div>
             </div>
           </div>

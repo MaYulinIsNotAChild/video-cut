@@ -108,12 +108,16 @@ def get_editing_plan(
 ## User Request
 {user_description.strip() if user_description.strip() else 'Auto-optimize for the target platform.'}
 
-## Available effects you can recommend:
-- color_preset: "none" | "warm" | "cool" | "vintage" | "bw" | "vivid"
-- speed: 0.5 | 0.75 | 1.0 | 1.25 | 1.5 | 2.0
-- transition: "none" | "fade"
-- crop_ratio: "9:16" | "1:1" | "16:9" | "4:5" | "" (keep original)
-- remove_audio: true | false
+## Available effects — choose thoughtfully based on content:
+- color_preset: "none"|"warm"|"cool"|"vintage"|"bw"|"vivid"|"cinematic"|"sunset"|"moody"|"fresh"|"haze"
+  • cinematic=teal-orange film look, sunset=golden warm, moody=dark dramatic, fresh=bright airy, haze=dreamy soft
+- speed: 0.5|0.75|1.0|1.25|1.5|2.0  (slow-mo or fast cut based on energy)
+- transition: "none"|"fade"|"fadeblack"|"wipeleft"|"wiperight"|"slideright"|"zoomin"|"dissolve"
+- crop_ratio: "9:16"|"1:1"|"16:9"|"4:5"|""  (always recommend platform crop)
+- remove_audio: true|false
+- vignette: true|false  (dark border for cinematic depth)
+- sharpen: true|false  (enhance clarity for talking-head or product videos)
+- auto_subtitle: true|false  (auto-generate and burn Chinese subtitles if there is clear speech)
 
 Return ONLY valid JSON:
 {{
@@ -126,7 +130,10 @@ Return ONLY valid JSON:
     "speed": 1.0,
     "transition": "none",
     "crop_ratio": "",
-    "remove_audio": false
+    "remove_audio": false,
+    "vignette": false,
+    "sharpen": false,
+    "auto_subtitle": false
   }}
 }}
 
@@ -281,11 +288,13 @@ def get_multi_video_plan(
         "type": "text",
         "text": (
             f"\n\nVideo durations: {duration_hints}\n\n"
-            "## Available effects you can recommend per video:\n"
-            "- color_preset: none | warm | cool | vintage | bw | vivid\n"
-            "- speed: 0.5 | 0.75 | 1.0 | 1.25 | 1.5 | 2.0\n"
-            "- transition_to_next: cut | fade  (transition into the NEXT video)\n"
-            "- remove_audio: true | false\n\n"
+            "## Available effects per video:\n"
+            "- color_preset: none|warm|cool|vintage|bw|vivid|cinematic|sunset|moody|fresh|haze\n"
+            "- speed: 0.5|0.75|1.0|1.25|1.5|2.0\n"
+            "- transition_to_next: cut|fade|fadeblack|wipeleft|wiperight|slideright|zoomin|dissolve\n"
+            "- remove_audio: true|false\n"
+            "- vignette: true|false\n"
+            "- sharpen: true|false\n\n"
             "Return ONLY valid JSON:\n"
             '{\n'
             '  "videos": [\n'

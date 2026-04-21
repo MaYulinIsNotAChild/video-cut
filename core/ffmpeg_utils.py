@@ -9,11 +9,18 @@ from typing import Any, Dict, List, Optional
 
 # 色彩预设滤镜
 COLOR_PRESETS: Dict[str, str] = {
-    "warm":    "eq=brightness=0.05:contrast=1.1:saturation=1.4,hue=h=8",
-    "cool":    "eq=brightness=0.02:saturation=1.2,hue=h=-8",
-    "vintage": "eq=saturation=0.6:contrast=1.2:brightness=-0.02",
-    "bw":      "hue=s=0,eq=contrast=1.2",
-    "vivid":   "eq=saturation=2.0:contrast=1.2:brightness=0.02",
+    # 基础
+    "warm":      "eq=brightness=0.05:contrast=1.1:saturation=1.4,hue=h=8",
+    "cool":      "eq=brightness=0.02:saturation=1.2,hue=h=-8",
+    "vintage":   "eq=saturation=0.6:contrast=1.2:brightness=-0.02",
+    "bw":        "hue=s=0,eq=contrast=1.2",
+    "vivid":     "eq=saturation=2.0:contrast=1.2:brightness=0.02",
+    # 电影级
+    "cinematic": "colorbalance=bs=0.12:bm=0.04:rs=-0.04:rh=0.12:gh=0.04:bh=-0.08,eq=contrast=1.3:saturation=0.88",
+    "sunset":    "eq=brightness=0.06:contrast=1.2:saturation=1.7,colorbalance=rs=0.15:gs=-0.02:bs=-0.18:rm=0.08:bm=-0.08",
+    "moody":     "eq=brightness=-0.1:contrast=1.45:saturation=0.72,colorbalance=bs=0.12:bm=0.06",
+    "fresh":     "eq=brightness=0.12:contrast=1.02:saturation=1.35,unsharp=3:3:0.4:3:3:0.0",
+    "haze":      "eq=brightness=0.18:contrast=0.76:saturation=0.62,colorbalance=rs=0.06:gs=0.04:bs=0.09",
 }
 
 # 导出质量 → CRF
@@ -121,6 +128,8 @@ def apply_edits(
     bgm_volume: float = 0.5,
     # 导出
     quality: str = "medium",
+    vignette: bool = False,
+    sharpen: bool = False,
     # 字幕
     subtitle_path: Optional[str] = None,
 ) -> None:
@@ -224,6 +233,14 @@ def apply_edits(
             if contrast  != 1.0:  eq_parts.append(f"contrast={contrast:.2f}")
             if saturation != 1.0: eq_parts.append(f"saturation={saturation:.2f}")
             global_vf.append(f"eq={':'.join(eq_parts)}")
+
+        # 锐化
+        if sharpen:
+            global_vf.append("unsharp=5:5:0.6:5:5:0.0")
+
+        # 暗角
+        if vignette:
+            global_vf.append("vignette=angle=PI/4")
 
         # 字幕烧录
         if subtitle_path:

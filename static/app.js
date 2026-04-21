@@ -3,7 +3,7 @@
 const edit = {
   files: [], activeId: null, platform: "抖音", editPlan: null,
   hflip: false, vflip: false, rotate: 0, crop: "",
-  bgmFileId: null,
+  bgmFileId: null, sharpen: false, vignette: false,
 };
 
 const photo = {
@@ -78,12 +78,17 @@ document.querySelectorAll(".acc-header").forEach((hdr) => {
 // ── 色彩预设 ──────────────────────────────────────────────────────────────────
 
 const PRESET_VALUES = {
-  none:    { b: 0,   c: 100, s: 100 },
-  warm:    { b: 5,   c: 110, s: 140 },
-  cool:    { b: 2,   c: 100, s: 120 },
-  vintage: { b: -2,  c: 120, s: 60  },
-  bw:      { b: 0,   c: 120, s: 0   },
-  vivid:   { b: 2,   c: 120, s: 200 },
+  none:      { b: 0,   c: 100, s: 100 },
+  warm:      { b: 5,   c: 110, s: 140 },
+  cool:      { b: 2,   c: 100, s: 120 },
+  vintage:   { b: -2,  c: 120, s: 60  },
+  bw:        { b: 0,   c: 120, s: 0   },
+  vivid:     { b: 2,   c: 120, s: 200 },
+  cinematic: { b: -5,  c: 130, s: 88  },
+  sunset:    { b: 6,   c: 120, s: 170 },
+  moody:     { b: -10, c: 145, s: 72  },
+  fresh:     { b: 12,  c: 102, s: 135 },
+  haze:      { b: 18,  c: 76,  s: 62  },
 };
 
 document.querySelectorAll(".preset-btn").forEach((btn) => {
@@ -153,6 +158,12 @@ function setCrop(ratio) {
   ["btnCrop916","btnCrop11","btnCrop169","btnCropNone"].forEach((id) => $(id)?.classList.remove("active"));
   const map = { "9:16": "btnCrop916", "1:1": "btnCrop11", "16:9": "btnCrop169", "": "btnCropNone" };
   if (map[ratio]) $(map[ratio]).classList.add("active");
+}
+
+function toggleEffect(key) {
+  edit[key] = !edit[key];
+  const idMap = { sharpen: "btnSharpen", vignette: "btnVignette" };
+  $(idMap[key])?.classList.toggle("active", edit[key]);
 }
 
 // ── 编辑 BGM 上传 ─────────────────────────────────────────────────────────────
@@ -297,13 +308,29 @@ async function previewPlan() {
 
 $("applyBtn").addEventListener("click", async () => {
   if (!edit.editPlan) return;
+  const opts = _buildEditOptions();
+
+  // 若 AI 推荐自动字幕且当前没有字幕，自动生成
+  if (edit.editPlan.recommended_options?.auto_subtitle && !opts.subtitle_file_id && getApiKey()) {
+    showLoading("AI 正在生成字幕...", "loading", "loadingText");
+    try {
+      const sub = await post(`/api/transcribe/${edit.activeId}`, { api_key: getApiKey() });
+      $("subtitlePreview").value = sub.srt_content;
+      $("subtitlePanel").classList.remove("hidden");
+      edit.subtitleFileId = edit.activeId;
+      $("optBurnSubtitle").checked = true;
+      opts.subtitle_file_id = edit.activeId;
+    } catch (e) { console.warn("字幕自动生成失败，跳过:", e.message); }
+    finally { hideLoading("loading"); }
+  }
+
   showLoading("正在剪辑，请稍候...", "loading", "loadingText");
   try {
     const result = await post("/api/edit", {
       file_id: edit.activeId,
       segments_to_keep: edit.editPlan.segments_to_keep,
       platform: edit.platform,
-      options: _buildEditOptions(),
+      options: opts,
     });
     $("downloadLink").href = result.download_url;
     $("downloadLink").setAttribute("download", result.filename);
@@ -329,6 +356,9 @@ $("clearMediaBtn").addEventListener("click", () => {
   $("subtitleSection").classList.add("hidden");
   $("subtitlePanel").classList.add("hidden");
   edit.subtitleFileId = null;
+  edit.sharpen = false; edit.vignette = false;
+  $("btnSharpen")?.classList.remove("active");
+  $("btnVignette")?.classList.remove("active");
   $("applyBtn").classList.add("hidden");
   $("previewBtnTop").classList.add("hidden");
   $("exportTopHint").classList.remove("hidden");
@@ -353,6 +383,8 @@ function _buildEditOptions() {
     bgm_volume:       parseInt($("optBgmVolume").value) / 100,
     quality:          $("optQuality").value,
     subtitle_file_id: ($("optBurnSubtitle").checked && edit.subtitleFileId) ? edit.subtitleFileId : null,
+    vignette: edit.vignette,
+    sharpen:  edit.sharpen,
   };
 }
 
@@ -487,6 +519,10 @@ function _applyRecommendedOptions(opts) {
   // 去声
   if (opts.remove_audio !== undefined) $("optRemoveAudio").checked = !!opts.remove_audio;
 
+  // 锐化 / 暗角
+  if (opts.sharpen !== undefined) { edit.sharpen = !!opts.sharpen; $("btnSharpen")?.classList.toggle("active", edit.sharpen); }
+  if (opts.vignette !== undefined) { edit.vignette = !!opts.vignette; $("btnVignette")?.classList.toggle("active", edit.vignette); }
+
   // 画面裁剪
   if (opts.crop_ratio !== undefined) setCrop(opts.crop_ratio || "");
 
@@ -497,6 +533,9 @@ function _applyRecommendedOptions(opts) {
     opts.transition && opts.transition !== "none" ? `✨ ${opts.transition}` : null,
     opts.crop_ratio ? `📐 ${opts.crop_ratio}` : null,
     opts.remove_audio ? "🔇 去声" : null,
+    opts.sharpen   ? "🔍 锐化" : null,
+    opts.vignette  ? "🎭 暗角" : null,
+    opts.auto_subtitle ? "📝 自动字幕" : null,
   ].filter(Boolean).map((t) => `<span class="rec-badge">${t}</span>`).join(" ");
 
   if (badges) {

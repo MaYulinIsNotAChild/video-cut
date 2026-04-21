@@ -235,6 +235,63 @@ $("analyzeAllBtn").addEventListener("click", async () => {
   finally { hideLoading("loading"); }
 });
 
+// ── 导出前预览（逐段播放已加载的视频，无需服务端） ───────────────────────────
+
+let _previewState = null;
+
+async function previewPlan() {
+  const segs = edit.editPlan?.segments_to_keep;
+  if (!segs?.length) return;
+
+  const video = $("videoPlayer");
+  if (!video || video.classList.contains("hidden")) {
+    alert("请先选中一个视频文件"); return;
+  }
+
+  // 点击第二次：停止预览
+  if (_previewState) {
+    _previewState.active = false;
+    return;
+  }
+
+  const btn = $("previewBtn");
+  const sorted = [...segs].sort((a, b) => a.start - b.start);
+  _previewState = { active: true };
+  btn.textContent = `⏹ 停止预览`;
+  btn.classList.add("previewing");
+
+  // 滚动到视频播放器
+  video.scrollIntoView({ behavior: "smooth", block: "center" });
+
+  for (let i = 0; i < sorted.length; i++) {
+    if (!_previewState?.active) break;
+    const seg = sorted[i];
+    btn.textContent = `⏹ 预览中 ${i + 1}/${sorted.length}（${seg.start.toFixed(1)}s→${seg.end.toFixed(1)}s）`;
+
+    video.currentTime = seg.start;
+    try { await video.play(); } catch (_) { break; }
+
+    await new Promise((resolve) => {
+      const tid = setInterval(() => {
+        if (!_previewState?.active || video.currentTime >= seg.end - 0.08 || video.paused || video.ended) {
+          clearInterval(tid);
+          video.pause();
+          resolve();
+        }
+      }, 40);
+    });
+
+    // 片段间短暂停顿
+    if (_previewState?.active && i < sorted.length - 1) {
+      await new Promise((r) => setTimeout(r, 180));
+    }
+  }
+
+  _previewState = null;
+  btn.textContent = "▶ 预览剪辑效果";
+  btn.classList.remove("previewing");
+}
+
 $("applyBtn").addEventListener("click", async () => {
   if (!edit.editPlan) return;
   showLoading("正在剪辑，请稍候...", "loading", "loadingText");

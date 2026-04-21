@@ -247,8 +247,10 @@ $("applyBtn").addEventListener("click", async () => {
     });
     $("downloadLink").href = result.download_url;
     $("downloadLink").setAttribute("download", result.filename);
-    $("previewVideo").src = result.download_url;
-    $("previewVideo").classList.remove("hidden");
+    const pv = $("previewVideo");
+    pv.src = result.download_url + "?t=" + Date.now();
+    pv.load();
+    pv.classList.remove("hidden");
     $("downloadPanel").classList.remove("hidden");
     $("downloadPanel").scrollIntoView({ behavior: "smooth" });
   } catch (err) { alert("剪辑失败：" + err.message); }
@@ -810,8 +812,10 @@ $("exportAllBtn").addEventListener("click", async () => {
     if (task.status === "error") throw new Error(task.error);
     $("multiDownloadLink").href = task.result.download_url;
     $("multiDownloadLink").setAttribute("download", task.result.filename);
-    $("multiPreviewVideo").src = task.result.download_url;
-    $("multiPreviewVideo").classList.remove("hidden");
+    const mpv = $("multiPreviewVideo");
+    mpv.src = task.result.download_url + "?t=" + Date.now();
+    mpv.load();
+    mpv.classList.remove("hidden");
     $("multiDownloadPanel").classList.remove("hidden");
     $("multiDownloadPanel").scrollIntoView({ behavior: "smooth" });
   } catch (err) { alert("合并失败：" + err.message); }
@@ -862,8 +866,10 @@ async function exportSingleFromMulti(fileId, videoIdx) {
     });
     $("multiDownloadLink").href = res.download_url;
     $("multiDownloadLink").setAttribute("download", res.filename);
-    $("multiPreviewVideo").src = res.download_url;
-    $("multiPreviewVideo").classList.remove("hidden");
+    const spv = $("multiPreviewVideo");
+    spv.src = res.download_url + "?t=" + Date.now();
+    spv.load();
+    spv.classList.remove("hidden");
     $("multiDownloadPanel").classList.remove("hidden");
     $("multiDownloadPanel").scrollIntoView({ behavior: "smooth" });
   } catch (err) { alert("导出失败：" + err.message); }

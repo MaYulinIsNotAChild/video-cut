@@ -168,7 +168,8 @@ def apply_edits(
                     cmd += ["-an"]
                 elif af_parts:
                     cmd += ["-af", ",".join(af_parts)]
-                cmd += ["-c:v", "libx264", "-crf", str(crf), "-preset", "fast", "-pix_fmt", "yuv420p"]
+                cmd += ["-c:v", "libx264", "-profile:v", "main", "-level", "4.1",
+                        "-crf", str(crf), "-preset", "fast", "-pix_fmt", "yuv420p"]
                 if not remove_audio:
                     cmd += ["-c:a", "aac"]
 
@@ -240,22 +241,19 @@ def apply_edits(
         has_bgm = bool(bgm_path)
         effect_out = str(tmp_dir / "effected.mp4") if has_bgm else output_path
 
-        if needs_effects:
-            cmd = ["ffmpeg", "-y", "-i", str(concat_path)]
-            if global_vf:
-                cmd += ["-vf", ",".join(global_vf)]
-            if global_af:
-                cmd += ["-af", ",".join(global_af)]
-            cmd += ["-c:v", "libx264", "-crf", str(crf), "-preset", "fast", "-pix_fmt", "yuv420p"]
-            cmd += ["-c:a", "aac"] if (not remove_audio and global_af) else ["-c:a", "copy"] if not remove_audio else ["-an"]
-            cmd.append(effect_out)
-            subprocess.run(cmd, capture_output=True, check=True)
-        else:
-            if has_bgm:
-                shutil.copy(str(concat_path), effect_out)
-            else:
-                shutil.copy(str(concat_path), output_path)
-                return
+        # 无论是否有效果，都经过最终编码确保 profile/faststart 兼容性
+        cmd = ["ffmpeg", "-y", "-i", str(concat_path)]
+        if global_vf:
+            cmd += ["-vf", ",".join(global_vf)]
+        if global_af:
+            cmd += ["-af", ",".join(global_af)]
+        if needs_effects or True:  # 始终重新编码以确保兼容性
+            cmd += ["-c:v", "libx264", "-profile:v", "main", "-level", "4.1",
+                    "-crf", str(crf), "-preset", "fast", "-pix_fmt", "yuv420p",
+                    "-movflags", "+faststart"]
+            cmd += ["-c:a", "aac"] if not remove_audio else ["-an"]
+        cmd.append(effect_out)
+        subprocess.run(cmd, capture_output=True, check=True)
 
         # ── 步骤4：混合背景音乐 ────────────────────────────────────────────────
         if has_bgm:
@@ -343,8 +341,9 @@ def concat_videos(
             cmd = [
                 "ffmpeg", "-y", "-f", "concat", "-safe", "0",
                 "-i", str(list_file),
-                "-c:v", "libx264", "-crf", str(crf), "-preset", "fast", "-pix_fmt", "yuv420p",
-                "-c:a", "aac",
+                "-c:v", "libx264", "-profile:v", "main", "-level", "4.1",
+                "-crf", str(crf), "-preset", "fast", "-pix_fmt", "yuv420p",
+                "-movflags", "+faststart", "-c:a", "aac",
                 output_path,
             ]
             subprocess.run(cmd, capture_output=True, check=True)
@@ -393,8 +392,9 @@ def concat_videos(
                 "ffmpeg", "-y", *inputs_args,
                 "-filter_complex", filter_complex,
                 *map_args,
-                "-c:v", "libx264", "-crf", str(crf), "-preset", "fast", "-pix_fmt", "yuv420p",
-                *audio_enc,
+                "-c:v", "libx264", "-profile:v", "main", "-level", "4.1",
+                "-crf", str(crf), "-preset", "fast", "-pix_fmt", "yuv420p",
+                "-movflags", "+faststart", *audio_enc,
                 output_path,
             ]
             subprocess.run(cmd, capture_output=True, check=True)

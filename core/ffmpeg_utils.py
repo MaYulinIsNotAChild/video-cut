@@ -418,16 +418,23 @@ def compress_video(
     format: str = "mp4",
 ) -> None:
     """压缩视频：降分辨率 + 调整码率，支持 mp4/mov/webm"""
-    vcodec = "libvpx-vp9" if format == "webm" else "libx264"
-    acodec = "libopus" if format == "webm" else "aac"
+    if format == "webm":
+        vcodec, acodec = "libvpx-vp9", "libopus"
+        # libvpx-vp9 不支持 -preset，用 -deadline 代替
+        extra = ["-deadline", "realtime", "-cpu-used", "4"]
+    else:
+        vcodec, acodec = "libx264", "aac"
+        extra = ["-preset", "fast"]
     cmd = [
         "ffmpeg", "-y", "-i", input_path,
         "-vf", f"scale=-2:{target_height}",
-        "-c:v", vcodec, "-crf", str(crf), "-preset", "fast",
+        "-c:v", vcodec, "-crf", str(crf), *extra,
         "-c:a", acodec,
         output_path,
     ]
-    subprocess.run(cmd, capture_output=True, check=True)
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        raise RuntimeError(result.stderr[-400:] if result.stderr else "FFmpeg 压缩失败")
 
 
 def _mix_bgm(

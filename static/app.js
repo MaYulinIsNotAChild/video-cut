@@ -779,11 +779,20 @@ $("exportAllBtn").addEventListener("click", async () => {
 });
 
 async function _pollTask(taskId, onProgress) {
+  let retries = 0;
   while (true) {
     await new Promise((r) => setTimeout(r, 2000));
-    const task = await fetch(`/api/task/${taskId}`).then((r) => r.json());
-    if (onProgress) onProgress(task.progress || 0);
-    if (task.status === "done" || task.status === "error") return;
+    try {
+      const resp = await fetch(`/api/task/${taskId}`);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const task = await resp.json();
+      retries = 0;
+      if (onProgress) onProgress(task.progress || 0);
+      if (task.status === "done" || task.status === "error") return;
+    } catch (err) {
+      retries++;
+      if (retries >= 5) throw new Error("任务查询失败，请刷新页面重试");
+    }
   }
 }
 

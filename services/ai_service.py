@@ -20,7 +20,8 @@ def transcribe_video(
             response_format="srt",
             language=language,
         )
-    return transcript
+    # response_format="srt" 返回字符串，但部分 SDK 版本返回对象
+    return transcript if isinstance(transcript, str) else str(transcript)
 
 
 def pick_best_thumbnail(

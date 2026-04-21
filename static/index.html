@@ -48,23 +48,32 @@
         <div class="panel-title">📊 静音片段检测</div>
         <div id="silenceList"></div>
       </div>
-      <button class="btn-subtitle hidden" id="subtitleBtn">📝 AI 生成字幕（Whisper）</button>
-      <div class="subtitle-panel hidden" id="subtitlePanel">
-        <div class="panel-title">📝 字幕</div>
-        <textarea id="subtitlePreview" class="subtitle-preview" rows="4" readonly placeholder="点击生成字幕后显示..."></textarea>
-        <label class="option-row" style="margin-top:4px">
-          <span class="option-label">烧录字幕到视频</span>
-          <label class="toggle"><input type="checkbox" id="optBurnSubtitle"><span class="toggle-track"></span></label>
-        </label>
-      </div>
-      <button class="btn-subtitle hidden" id="thumbnailBtn" style="margin-top:4px;background:rgba(63,185,80,.08);border-color:rgba(63,185,80,.25);color:var(--green)">🖼 AI 提取最佳封面</button>
-      <div class="thumbnail-panel hidden" id="thumbnailPanel">
-        <img id="thumbnailImg" src="" style="width:100%;border-radius:var(--r);margin-top:6px">
-        <a id="thumbnailDownload" href="#" download class="btn-download" style="margin-top:6px;display:block">⬇ 下载封面图</a>
-      </div>
     </section>
 
     <section class="ai-panel">
+
+      <!-- 顶部固定导出条 -->
+      <div class="export-top-bar">
+        <span class="export-top-hint" id="exportTopHint">选中视频并获取 AI 建议后可导出</span>
+        <button class="btn-preview btn-preview-sm hidden" id="previewBtnTop" onclick="previewPlan()">▶ 预览</button>
+        <button class="btn-export-top hidden" id="applyBtn">✂ 导出当前视频</button>
+      </div>
+
+      <!-- 字幕功能（右侧显眼位置，选中视频后出现） -->
+      <div class="subtitle-section hidden" id="subtitleSection">
+        <div class="subtitle-section-header">
+          <span class="section-title" style="margin:0">📝 AI 字幕</span>
+          <button class="btn-subtitle-r" id="subtitleBtn">生成字幕（Whisper）</button>
+        </div>
+        <div class="hidden" id="subtitlePanel">
+          <textarea id="subtitlePreview" class="subtitle-preview" rows="3" readonly placeholder="字幕内容..."></textarea>
+          <label class="option-row" style="margin-top:4px">
+            <span class="option-label">导出时烧录字幕</span>
+            <label class="toggle"><input type="checkbox" id="optBurnSubtitle"><span class="toggle-track"></span></label>
+          </label>
+        </div>
+      </div>
+
       <div class="platform-selector">
         <div class="section-title">目标平台</div>
         <div class="platform-buttons">
@@ -89,11 +98,8 @@
         <!-- AI 推荐参数（自动应用到控件） -->
         <div class="rec-opts-bar hidden" id="recOptsBar"></div>
 
-        <!-- 预览 & 导出按钮（时间线正下方，最显眼位置） -->
-        <div class="action-row">
-          <button class="btn-preview" id="previewBtn" onclick="previewPlan()">▶ 预览剪辑效果</button>
-          <button class="btn-success" id="applyBtn">✂ 导出</button>
-        </div>
+        <!-- 预览按钮（导出按钮已移到顶部固定位置） -->
+        <button class="btn-preview" id="previewBtn" onclick="previewPlan()">▶ 预览剪辑效果</button>
 
         <!-- 时间线预览 -->
         <div class="timeline-section">
@@ -307,6 +313,11 @@
         </div>
         <div id="multiPanelContent"></div>
         <button class="btn-export-all hidden" id="exportAllBtn">⚡ 一键按推荐顺序导出合并视频</button>
+        <!-- 独立进度条（不受其他操作影响） -->
+        <div class="multi-export-progress hidden" id="multiExportProgress">
+          <div class="mep-bar"><div class="mep-fill" id="mepFill"></div></div>
+          <div class="mep-text" id="mepText">准备中...</div>
+        </div>
         <div class="download-panel hidden" id="multiDownloadPanel">
           <div class="section-title">🎉 合并完成 — 预览</div>
           <video id="multiPreviewVideo" controls class="preview-video hidden"></video>

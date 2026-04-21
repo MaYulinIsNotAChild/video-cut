@@ -237,8 +237,23 @@ textarea::placeholder { color: var(--muted); }
 .btn-compress { width: 100%; padding: 7px; margin-top: 8px; background: rgba(139,148,158,.1); border: 1px solid var(--border); border-radius: var(--r); color: var(--text); cursor: pointer; font-size: 12px; transition: all .2s; }
 .btn-compress:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
 .btn-compress:disabled { opacity: .4; cursor: not-allowed; }
-.btn-subtitle { width: 100%; padding: 7px; margin-top: 4px; background: rgba(88,166,255,.08); border: 1px solid rgba(88,166,255,.25); border-radius: var(--r); color: var(--accent); cursor: pointer; font-size: 11px; transition: all .2s; }
-.btn-subtitle:hover { background: rgba(88,166,255,.18); }
-.subtitle-panel { background: var(--panel); border: 1px solid var(--border); border-radius: var(--r); padding: 11px; }
-.subtitle-preview { width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 4px; color: var(--text); padding: 6px 8px; font-size: 10px; font-family: monospace; resize: vertical; }
+/* 字幕区（已移至右侧 ai-panel） */
+.subtitle-section { background: rgba(88,166,255,.05); border: 1px solid rgba(88,166,255,.2); border-radius: var(--r); padding: 10px 12px; }
+.subtitle-section-header { display: flex; align-items: center; justify-content: space-between; }
+.btn-subtitle-r { padding: 4px 12px; background: rgba(88,166,255,.15); border: 1px solid rgba(88,166,255,.35); border-radius: 5px; color: var(--accent); cursor: pointer; font-size: 12px; font-weight: 600; transition: all .2s; white-space: nowrap; }
+.btn-subtitle-r:hover { background: rgba(88,166,255,.28); }
+.subtitle-preview { width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 4px; color: var(--text); padding: 6px 8px; font-size: 10px; font-family: monospace; resize: vertical; margin-top: 6px; }
+
+/* 顶部固定导出条 */
+.export-top-bar { position: sticky; top: 0; z-index: 20; background: var(--panel); border-bottom: 1px solid var(--border); padding: 8px 0; display: flex; align-items: center; gap: 8px; justify-content: flex-end; flex-shrink: 0; }
+.export-top-hint { font-size: 11px; color: var(--muted); margin-right: auto; }
+.btn-preview-sm { padding: 5px 12px; font-size: 12px; margin-top: 0; }
+.btn-export-top { padding: 6px 16px; background: var(--green); border: none; border-radius: var(--r); color: #0d1117; font-weight: 700; font-size: 13px; cursor: pointer; white-space: nowrap; transition: opacity .2s; }
+.btn-export-top:hover { opacity: .85; }
+
+/* 多视频独立导出进度条 */
+.multi-export-progress { margin: 8px 0; padding: 10px; background: rgba(88,166,255,.06); border: 1px solid rgba(88,166,255,.2); border-radius: var(--r); }
+.mep-bar { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; margin-bottom: 6px; }
+.mep-fill { height: 100%; background: var(--accent); border-radius: 3px; transition: width .4s ease; width: 0%; }
+.mep-text { font-size: 11px; color: var(--muted); text-align: center; }
 .thumbnail-panel { background: var(--panel); border: 1px solid var(--border); border-radius: var(--r); padding: 11px; }

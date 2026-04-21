@@ -209,6 +209,9 @@ $("analyzeBtn").addEventListener("click", async () => {
     edit.editPlan = plan;
     renderPlan(plan);
     $("suggestionsPanel").classList.remove("hidden");
+    $("applyBtn").classList.remove("hidden");
+    $("previewBtnTop").classList.remove("hidden");
+    $("exportTopHint").classList.add("hidden");
     $("suggestionsPanel").scrollIntoView({ behavior: "smooth" });
   } catch (err) { alert("AI 分析失败：" + err.message); }
   finally { hideLoading("loading"); }
@@ -323,11 +326,12 @@ $("clearMediaBtn").addEventListener("click", () => {
   uploadArea.classList.remove("hidden");
   $("compressBtn").disabled = true;
   $("compressDownloadPanel").classList.add("hidden");
-  $("subtitleBtn").classList.add("hidden");
+  $("subtitleSection").classList.add("hidden");
   $("subtitlePanel").classList.add("hidden");
   edit.subtitleFileId = null;
-  $("thumbnailBtn").classList.add("hidden");
-  $("thumbnailPanel").classList.add("hidden");
+  $("applyBtn").classList.add("hidden");
+  $("previewBtnTop").classList.add("hidden");
+  $("exportTopHint").classList.remove("hidden");
 });
 
 function _buildEditOptions() {
@@ -424,12 +428,10 @@ async function selectMediaFile(fileId) {
   } finally { hideLoading("loading"); }
   $("analyzeBtn").disabled = false;
   $("compressBtn").disabled = false;
-  $("subtitleBtn").classList.remove("hidden");
+  $("subtitleSection").classList.remove("hidden");
   $("subtitlePanel").classList.add("hidden");
   $("subtitlePreview").value = "";
   edit.subtitleFileId = null;
-  $("thumbnailBtn").classList.remove("hidden");
-  $("thumbnailPanel").classList.add("hidden");
 }
 
 function renderMediaInfo(info, type) {
@@ -889,6 +891,9 @@ function applyMultiPlan(fileId, videoIdx) {
   edit.editPlan = v.editing_plan;
   renderPlan(v.editing_plan);
   $("suggestionsPanel").classList.remove("hidden");
+  $("applyBtn").classList.remove("hidden");
+  $("previewBtnTop").classList.remove("hidden");
+  $("exportTopHint").classList.add("hidden");
   $("suggestionsPanel").scrollIntoView({ behavior: "smooth" });
 }
 
@@ -899,7 +904,15 @@ $("exportAllBtn").addEventListener("click", async () => {
   const orderedVideos = order.map((i) => result.videos[i]).filter(Boolean);
   if (!orderedVideos.length) return;
 
-  showLoading("正在提交任务...", "loading", "loadingText");
+  // 用独立进度条，不与其他操作共用 #loading
+  const prog = $("multiExportProgress");
+  const fill = $("mepFill");
+  const text = $("mepText");
+  prog.classList.remove("hidden");
+  $("exportAllBtn").disabled = true;
+  fill.style.width = "0%";
+  text.textContent = "正在提交任务...";
+
   try {
     const { task_id } = await post("/api/export-multi", {
       videos: orderedVideos.map((v) => ({
@@ -909,12 +922,14 @@ $("exportAllBtn").addEventListener("click", async () => {
       })),
       options: { quality: $("optQuality").value },
     });
-    // 轮询进度
-    await _pollTask(task_id, (prog) => {
-      $("loadingText").textContent = `正在剪辑合并... ${prog}%`;
+    await _pollTask(task_id, (p) => {
+      fill.style.width = p + "%";
+      text.textContent = `正在剪辑合并... ${p}%`;
     });
     const task = await fetch(`/api/task/${task_id}`).then((r) => r.json());
     if (task.status === "error") throw new Error(task.error);
+    fill.style.width = "100%";
+    text.textContent = "完成！";
     $("multiDownloadLink").href = task.result.download_url;
     $("multiDownloadLink").setAttribute("download", task.result.filename);
     const mpv = $("multiPreviewVideo");
@@ -923,8 +938,12 @@ $("exportAllBtn").addEventListener("click", async () => {
     mpv.classList.remove("hidden");
     $("multiDownloadPanel").classList.remove("hidden");
     $("multiDownloadPanel").scrollIntoView({ behavior: "smooth" });
-  } catch (err) { alert("合并失败：" + err.message); }
-  finally { hideLoading("loading"); }
+  } catch (err) {
+    text.textContent = "导出失败：" + err.message;
+    alert("合并失败：" + err.message);
+  } finally {
+    $("exportAllBtn").disabled = false;
+  }
 });
 
 async function _pollTask(taskId, onProgress) {
@@ -997,21 +1016,6 @@ $("subtitleBtn").addEventListener("click", async () => {
   finally { hideLoading("loading"); }
 });
 
-// ── 封面帧提取 ────────────────────────────────────────────────────────────────
-
-$("thumbnailBtn").addEventListener("click", async () => {
-  if (!edit.activeId) return;
-  if (!getApiKey()) { alert("请先填入 API Key"); return; }
-  showLoading("AI 分析最佳封面帧...", "loading", "loadingText");
-  try {
-    const res = await post(`/api/thumbnail/${edit.activeId}`, { api_key: getApiKey() });
-    $("thumbnailImg").src = res.thumbnail_url;
-    $("thumbnailDownload").href = res.thumbnail_url;
-    $("thumbnailDownload").setAttribute("download", `thumb_${edit.activeId}.jpg`);
-    $("thumbnailPanel").classList.remove("hidden");
-  } catch (err) { alert("封面提取失败：" + err.message); }
-  finally { hideLoading("loading"); }
-});
 
 // ── 视频压缩 ──────────────────────────────────────────────────────────────────
 

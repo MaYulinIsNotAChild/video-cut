@@ -247,6 +247,8 @@ $("applyBtn").addEventListener("click", async () => {
     });
     $("downloadLink").href = result.download_url;
     $("downloadLink").setAttribute("download", result.filename);
+    $("previewVideo").src = result.download_url;
+    $("previewVideo").classList.remove("hidden");
     $("downloadPanel").classList.remove("hidden");
     $("downloadPanel").scrollIntoView({ behavior: "smooth" });
   } catch (err) { alert("剪辑失败：" + err.message); }
@@ -410,11 +412,47 @@ function _refreshSegmentList() {
   $("segmentsList").innerHTML = segs.length
     ? segs.map((seg, i) => `
         <div class="segment-item">
-          <span>片段 ${i + 1}：${seg.start.toFixed(1)}s → ${seg.end.toFixed(1)}s</span>
+          <span class="seg-num">片段 ${i + 1}</span>
+          <input class="seg-time-input" type="number" value="${seg.start.toFixed(1)}" min="0" step="0.1"
+                 onchange="updateSegTime(${i},'start',this.value)">
+          <span class="add-seg-arrow">→</span>
+          <input class="seg-time-input" type="number" value="${seg.end.toFixed(1)}" min="0" step="0.1"
+                 onchange="updateSegTime(${i},'end',this.value)">
           <span class="segment-dur">${(seg.end - seg.start).toFixed(1)}s</span>
           <button class="seg-del-btn" onclick="deleteSegment(${i})" title="删除该片段">×</button>
         </div>`).join("")
     : '<div class="silence-item" style="color:var(--muted)">（无保留片段）</div>';
+}
+
+function updateSegTime(i, side, val) {
+  if (!edit.editPlan) return;
+  const t = parseFloat(val);
+  if (isNaN(t)) return;
+  const duration = getActiveDuration();
+  const seg = edit.editPlan.segments_to_keep[i];
+  if (!seg) return;
+  const MIN = 0.1;
+  if (side === "start") seg.start = Math.max(0, Math.min(t, seg.end - MIN));
+  else seg.end = Math.max(seg.start + MIN, Math.min(t, duration));
+  _renderTlSegments(edit.editPlan.segments_to_keep, duration);
+  _refreshSegmentList();
+  _refreshPlanStats();
+}
+
+function addSegment() {
+  if (!edit.editPlan) return;
+  const start = parseFloat($("newSegStart").value);
+  const end   = parseFloat($("newSegEnd").value);
+  const duration = getActiveDuration();
+  if (isNaN(start) || isNaN(end)) { alert("请输入开始和结束时间"); return; }
+  if (start >= end) { alert("开始时间必须小于结束时间"); return; }
+  if (start < 0 || end > duration) { alert(`时间范围须在 0 ~ ${duration.toFixed(1)}s 之内`); return; }
+  edit.editPlan.segments_to_keep.push({ start: Math.round(start * 10) / 10, end: Math.round(end * 10) / 10 });
+  edit.editPlan.segments_to_keep.sort((a, b) => a.start - b.start);
+  $("newSegStart").value = ""; $("newSegEnd").value = "";
+  _renderTlSegments(edit.editPlan.segments_to_keep, duration);
+  _refreshSegmentList();
+  _refreshPlanStats();
 }
 
 function deleteSegment(i) {
@@ -772,6 +810,8 @@ $("exportAllBtn").addEventListener("click", async () => {
     if (task.status === "error") throw new Error(task.error);
     $("multiDownloadLink").href = task.result.download_url;
     $("multiDownloadLink").setAttribute("download", task.result.filename);
+    $("multiPreviewVideo").src = task.result.download_url;
+    $("multiPreviewVideo").classList.remove("hidden");
     $("multiDownloadPanel").classList.remove("hidden");
     $("multiDownloadPanel").scrollIntoView({ behavior: "smooth" });
   } catch (err) { alert("合并失败：" + err.message); }
@@ -822,6 +862,8 @@ async function exportSingleFromMulti(fileId, videoIdx) {
     });
     $("multiDownloadLink").href = res.download_url;
     $("multiDownloadLink").setAttribute("download", res.filename);
+    $("multiPreviewVideo").src = res.download_url;
+    $("multiPreviewVideo").classList.remove("hidden");
     $("multiDownloadPanel").classList.remove("hidden");
     $("multiDownloadPanel").scrollIntoView({ behavior: "smooth" });
   } catch (err) { alert("导出失败：" + err.message); }

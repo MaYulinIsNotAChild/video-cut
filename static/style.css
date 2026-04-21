@@ -121,8 +121,17 @@ textarea::placeholder { color: var(--muted); }
 .suggestion-item:last-child { border-bottom: none; }
 .suggestion-item::before { content: "💡"; flex-shrink: 0; }
 .segments-block { margin-bottom: 4px; }
-.segment-item { display: flex; justify-content: space-between; padding: 3px 7px; margin-bottom: 3px; background: rgba(63,185,80,.08); border: 1px solid rgba(63,185,80,.25); border-radius: 4px; font-size: 10px; font-family: monospace; }
-.segment-dur { color: var(--green); font-size: 10px; }
+.segment-item { display: flex; align-items: center; gap: 4px; padding: 3px 7px; margin-bottom: 3px; background: rgba(63,185,80,.08); border: 1px solid rgba(63,185,80,.25); border-radius: 4px; font-size: 10px; font-family: monospace; }
+.seg-num { color: var(--muted); flex-shrink: 0; min-width: 38px; }
+.seg-time-input { width: 60px; background: var(--bg); border: 1px solid var(--border); border-radius: 3px; color: var(--text); font-size: 10px; font-family: monospace; padding: 1px 4px; text-align: center; }
+.seg-time-input:focus { outline: none; border-color: var(--accent); }
+.segment-dur { color: var(--green); font-size: 10px; margin-left: auto; flex-shrink: 0; }
+.add-seg-row { display: flex; align-items: center; gap: 5px; margin-top: 6px; padding: 4px 0; border-top: 1px dashed var(--border); font-size: 11px; }
+.add-seg-label { color: var(--muted); flex-shrink: 0; }
+.add-seg-arrow { color: var(--muted); flex-shrink: 0; }
+.btn-add-seg { background: rgba(88,166,255,.12); border: 1px solid rgba(88,166,255,.3); border-radius: 4px; color: var(--accent); cursor: pointer; font-size: 11px; padding: 2px 8px; white-space: nowrap; flex-shrink: 0; }
+.btn-add-seg:hover { background: rgba(88,166,255,.2); }
+.preview-video { width: 100%; border-radius: var(--r); margin-bottom: 8px; max-height: 260px; background: #000; }
 
 /* ── 手风琴选项 ── */
 .options-wrap { border-top: 1px solid var(--border); padding-top: 10px; display: flex; flex-direction: column; gap: 4px; }

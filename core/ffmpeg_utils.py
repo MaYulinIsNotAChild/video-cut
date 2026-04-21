@@ -168,7 +168,7 @@ def apply_edits(
                     cmd += ["-an"]
                 elif af_parts:
                     cmd += ["-af", ",".join(af_parts)]
-                cmd += ["-c:v", "libx264", f"-crf", str(crf), "-preset", "fast"]
+                cmd += ["-c:v", "libx264", "-crf", str(crf), "-preset", "fast", "-pix_fmt", "yuv420p"]
                 if not remove_audio:
                     cmd += ["-c:a", "aac"]
 
@@ -246,7 +246,7 @@ def apply_edits(
                 cmd += ["-vf", ",".join(global_vf)]
             if global_af:
                 cmd += ["-af", ",".join(global_af)]
-            cmd += ["-c:v", "libx264", f"-crf", str(crf), "-preset", "fast"]
+            cmd += ["-c:v", "libx264", "-crf", str(crf), "-preset", "fast", "-pix_fmt", "yuv420p"]
             cmd += ["-c:a", "aac"] if (not remove_audio and global_af) else ["-c:a", "copy"] if not remove_audio else ["-an"]
             cmd.append(effect_out)
             subprocess.run(cmd, capture_output=True, check=True)
@@ -343,7 +343,7 @@ def concat_videos(
             cmd = [
                 "ffmpeg", "-y", "-f", "concat", "-safe", "0",
                 "-i", str(list_file),
-                "-c:v", "libx264", "-crf", str(crf), "-preset", "fast",
+                "-c:v", "libx264", "-crf", str(crf), "-preset", "fast", "-pix_fmt", "yuv420p",
                 "-c:a", "aac",
                 output_path,
             ]
@@ -393,7 +393,7 @@ def concat_videos(
                 "ffmpeg", "-y", *inputs_args,
                 "-filter_complex", filter_complex,
                 *map_args,
-                "-c:v", "libx264", "-crf", str(crf), "-preset", "fast",
+                "-c:v", "libx264", "-crf", str(crf), "-preset", "fast", "-pix_fmt", "yuv420p",
                 *audio_enc,
                 output_path,
             ]
@@ -424,7 +424,7 @@ def compress_video(
         extra = ["-deadline", "realtime", "-cpu-used", "4"]
     else:
         vcodec, acodec = "libx264", "aac"
-        extra = ["-preset", "fast"]
+        extra = ["-preset", "fast", "-pix_fmt", "yuv420p"]
     cmd = [
         "ffmpeg", "-y", "-i", input_path,
         "-vf", f"scale=-2:{target_height}",

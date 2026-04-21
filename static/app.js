@@ -455,6 +455,54 @@ function renderPlan(plan) {
   _refreshPlanStats();
   _refreshSegmentList();
   renderTimeline(plan);
+  _applyRecommendedOptions(plan.recommended_options);
+}
+
+function _applyRecommendedOptions(opts) {
+  const bar = $("recOptsBar");
+  if (!opts) { bar.classList.add("hidden"); return; }
+
+  // 色彩预设
+  const preset = opts.color_preset || "none";
+  document.querySelectorAll(".preset-btn").forEach((b) => b.classList.remove("active"));
+  const pb = document.querySelector(`.preset-btn[data-preset="${preset}"]`);
+  if (pb) {
+    pb.classList.add("active");
+    const vals = PRESET_VALUES[preset];
+    if (vals) {
+      _setSlider("optBrightness", "brightnessVal", vals.b);
+      _setSlider("optContrast",   "contrastVal",   vals.c);
+      _setSlider("optSaturation", "saturationVal", vals.s);
+    }
+  }
+
+  // 速度
+  if (opts.speed) $("optSpeed").value = opts.speed;
+
+  // 转场
+  if (opts.transition) $("optTransition").value = opts.transition;
+
+  // 去声
+  if (opts.remove_audio !== undefined) $("optRemoveAudio").checked = !!opts.remove_audio;
+
+  // 画面裁剪
+  if (opts.crop_ratio !== undefined) setCrop(opts.crop_ratio || "");
+
+  // 展示推荐参数 badge
+  const badges = [
+    opts.color_preset && opts.color_preset !== "none" ? `🎨 ${opts.color_preset}` : null,
+    opts.speed && opts.speed !== 1.0 ? `⚡ ${opts.speed}×` : null,
+    opts.transition && opts.transition !== "none" ? `✨ ${opts.transition}` : null,
+    opts.crop_ratio ? `📐 ${opts.crop_ratio}` : null,
+    opts.remove_audio ? "🔇 去声" : null,
+  ].filter(Boolean).map((t) => `<span class="rec-badge">${t}</span>`).join(" ");
+
+  if (badges) {
+    bar.innerHTML = `<span class="rec-label">AI 已自动应用：</span>${badges}`;
+    bar.classList.remove("hidden");
+  } else {
+    bar.classList.add("hidden");
+  }
 }
 
 function _refreshPlanStats() {

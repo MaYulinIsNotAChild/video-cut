@@ -108,19 +108,34 @@ def get_editing_plan(
 ## User Request
 {user_description.strip() if user_description.strip() else 'Auto-optimize for the target platform.'}
 
+## Available effects you can recommend:
+- color_preset: "none" | "warm" | "cool" | "vintage" | "bw" | "vivid"
+- speed: 0.5 | 0.75 | 1.0 | 1.25 | 1.5 | 2.0
+- transition: "none" | "fade"
+- crop_ratio: "9:16" | "1:1" | "16:9" | "4:5" | "" (keep original)
+- remove_audio: true | false
+
 Return ONLY valid JSON:
 {{
   "segments_to_keep": [{{"start": 0.0, "end": 5.2}}, ...],
   "estimated_duration": 15.0,
   "suggestions": ["Chinese tip 1", "Chinese tip 2"],
-  "notes": "brief explanation in Chinese"
+  "notes": "brief explanation in Chinese",
+  "recommended_options": {{
+    "color_preset": "none",
+    "speed": 1.0,
+    "transition": "none",
+    "crop_ratio": "",
+    "remove_audio": false
+  }}
 }}
 
 Rules:
 1. segments_to_keep sorted by start time, non-overlapping, within [0, {duration:.1f}].
 2. Remove all detected silent segments unless user says otherwise.
 3. Total duration ≤ {preset['max_duration']}s.
-4. Start with a hook — first segment should grab attention immediately."""
+4. Start with a hook — first segment should grab attention immediately.
+5. Choose recommended_options based on video content and platform style."""
 
     response = client.chat.completions.create(
         model="gpt-5.4-mini",

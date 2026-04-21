@@ -86,9 +86,18 @@
         <div class="plan-notes" id="planNotes"></div>
         <div class="plan-stats" id="planStats"></div>
 
+        <!-- AI 推荐参数（自动应用到控件） -->
+        <div class="rec-opts-bar hidden" id="recOptsBar"></div>
+
+        <!-- 预览 & 导出按钮（时间线正下方，最显眼位置） -->
+        <div class="action-row">
+          <button class="btn-preview" id="previewBtn" onclick="previewPlan()">▶ 预览剪辑效果</button>
+          <button class="btn-success" id="applyBtn">✂ 导出</button>
+        </div>
+
         <!-- 时间线预览 -->
         <div class="timeline-section">
-          <div class="section-title-sm">🎬 时间线（拖动手柄微调片段边界，点击×删除片段）</div>
+          <div class="section-title-sm">🎬 时间线（拖动手柄微调，点击×删除）</div>
           <div class="timeline-track" id="timelineTrack"></div>
           <div class="tl-time-row"><span>0s</span><span id="tlTotalTime">—</span></div>
         </div>
@@ -282,8 +291,6 @@
 
         </div><!-- /options-wrap -->
 
-        <button class="btn-preview" id="previewBtn" onclick="previewPlan()">▶ 预览剪辑效果</button>
-        <button class="btn-success" id="applyBtn">✂ 导出剪辑</button>
       </div>
 
       <div class="download-panel hidden" id="downloadPanel">
